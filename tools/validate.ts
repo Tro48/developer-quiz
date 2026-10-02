@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { paths } from './paths';
+import { CORE_TOPIC_SLUGS, isKnownTopic } from './taxonomy';
 import { bankQuestionSchema } from './types';
 
 export type ValidationIssue = {
@@ -13,8 +14,13 @@ function normalizeOption(option: string): string {
   return option.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
-// Проверки финального банка: схема, уникальность id, различимость вариантов.
-export function validateBankQuestions(questions: unknown[]): ValidationIssue[] {
+type ValidateOptions = {
+  // Если задан — тема обязана входить в список; иначе достаточно известной.
+  allowedTopics?: readonly string[];
+};
+
+// Общие проверки: схема, известность темы, уникальность id, различимость вариантов.
+function validateQuestions(questions: unknown[], opts: ValidateOptions = {}): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const seen = new Set<string>();
 
@@ -25,6 +31,15 @@ export function validateBankQuestions(questions: unknown[]): ValidationIssue[] {
       const details = parsed.error.issues.map((issue) => issue.message).join('; ');
       issues.push({ id, message: `[${index}] не проходит схему банка: ${details}` });
       return;
+    }
+
+    if (!isKnownTopic(parsed.data.topic)) {
+      issues.push({ id: parsed.data.id, message: `неизвестная тема: ${parsed.data.topic}` });
+    } else if (opts.allowedTopics && !opts.allowedTopics.includes(parsed.data.topic)) {
+      issues.push({
+        id: parsed.data.id,
+        message: `тема «${parsed.data.topic}» не входит в ядро банка`,
+      });
     }
 
     if (seen.has(parsed.data.id)) {
@@ -41,8 +56,13 @@ export function validateBankQuestions(questions: unknown[]): ValidationIssue[] {
   return issues;
 }
 
+// Банк на старте принимает только темы ядра.
+export function validateBankQuestions(questions: unknown[]): ValidationIssue[] {
+  return validateQuestions(questions, { allowedTopics: CORE_TOPIC_SLUGS });
+}
+
 // В рабочей базе проверяем все записи с сырым статусом verified: невалидные
-// по схеме не должны молча выпадать из проверки.
+// по схеме не должны молча выпадать из проверки. Тема — любая известная.
 export function validateVerified(questions: unknown[]): ValidationIssue[] {
   const verified = questions.filter(
     (question) =>
@@ -50,7 +70,7 @@ export function validateVerified(questions: unknown[]): ValidationIssue[] {
       question !== null &&
       (question as { status?: unknown }).status === 'verified',
   );
-  return validateBankQuestions(verified);
+  return validateQuestions(verified);
 }
 
 // Чтение массива записей: ENOENT — это пустая база, остальные проблемы (права,

@@ -41,6 +41,16 @@ describe('validateBankQuestions', () => {
     expect(issues).toHaveLength(1);
     expect(issues[0].message).toContain('схему банка');
   });
+
+  it('ловит неизвестную тему', () => {
+    const issues = validateBankQuestions([{ ...validQuestion, topic: 'кулинария' }]);
+    expect(issues.some((issue) => issue.message.includes('неизвестная тема'))).toBe(true);
+  });
+
+  it('банк не принимает темы вне ядра', () => {
+    const issues = validateBankQuestions([{ ...validQuestion, topic: 'algorithms' }]);
+    expect(issues.some((issue) => issue.message.includes('не входит в ядро'))).toBe(true);
+  });
 });
 
 describe('validateVerified', () => {
@@ -53,6 +63,10 @@ describe('validateVerified', () => {
   it('не трогает записи с другими статусами', () => {
     const issues = validateVerified([{ ...validQuestion, status: 'generated', docsRefs: [] }]);
     expect(issues).toEqual([]);
+  });
+
+  it('validateVerified принимает известную резервную тему', () => {
+    expect(validateVerified([{ ...validQuestion, topic: 'algorithms' }])).toEqual([]);
   });
 });
 
