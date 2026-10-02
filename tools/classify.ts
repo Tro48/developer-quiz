@@ -1,0 +1,34 @@
+import type { ParsedQuestion } from './types';
+
+// Правила сопоставления заголовков источника каноническим темам.
+// Порядок важен: первое совпадение выигрывает.
+const TOPIC_RULES: [RegExp, string][] = [
+  [/typescript|\bts\b/i, 'typescript'],
+  [/react|redux|mobx|хук/i, 'react'],
+  [/javascript|event loop|промис|async|\bjs\b/i, 'javascript'],
+  [/css|flexbox|grid|вёрстк/i, 'css'],
+  [/html|семантик/i, 'html'],
+  [/алгоритм|структур/i, 'algorithms'],
+  [/сет|http|браузер|network/i, 'web'],
+  [/soft skills|мотивац|опыт/i, 'soft-skills'],
+];
+
+export function classifyQuestion(question: ParsedQuestion): ParsedQuestion {
+  if (question.topic !== 'unclassified') return question;
+
+  const hint = (question.topicHint ?? '').toLowerCase();
+  const match = TOPIC_RULES.find(([pattern]) => pattern.test(hint));
+  return { ...question, topic: match?.[1] ?? 'other' };
+}
+
+export function classifyAll(questions: ParsedQuestion[]): ParsedQuestion[] {
+  const byId = new Map<string, ParsedQuestion>();
+
+  for (const question of questions) {
+    const classified = classifyQuestion(question);
+    // Дубли схлопываем по id: id уже нормализует текст вопроса.
+    if (!byId.has(classified.id)) byId.set(classified.id, classified);
+  }
+
+  return [...byId.values()];
+}
