@@ -41,4 +41,17 @@ describe('loadDocMaps', () => {
     await writeFile(path.join(dir, 'b.json'), JSON.stringify([{ id: 'сломанная' }]), 'utf8');
     await expect(loadDocMaps(dir)).rejects.toThrow(/невалидна/);
   });
+
+  it('оборачивает битый JSON ошибкой с путём файла', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'dq-docmap-'));
+    await writeFile(path.join(dir, 'broken.json'), '{ не json', 'utf8');
+    await expect(loadDocMaps(dir)).rejects.toThrow(/broken\.json/);
+  });
+
+  it('ловит дубликат id между разными файлами карт', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'dq-docmap-'));
+    await writeFile(path.join(dir, 'a.json'), JSON.stringify(valid), 'utf8');
+    await writeFile(path.join(dir, 'b.json'), JSON.stringify([{ ...valid[0] }]), 'utf8');
+    await expect(loadDocMaps(dir)).rejects.toThrow(/дубликат id/);
+  });
 });

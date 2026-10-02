@@ -41,13 +41,30 @@ export function validateDocMap(sections: unknown): string[] {
 export async function loadDocMaps(dir: string = paths.docMap): Promise<DocSection[]> {
   const files = (await readdir(dir)).filter((file) => file.endsWith('.json')).sort();
   const sections: DocSection[] = [];
+  const ids = new Set<string>();
 
   for (const file of files) {
     const filePath = path.join(dir, file);
-    const raw: unknown = JSON.parse(await readFile(filePath, 'utf8'));
+    let raw: unknown;
+    try {
+      raw = JSON.parse(await readFile(filePath, 'utf8'));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Карта ${filePath} не читается: ${message}`);
+    }
+
     const issues = validateDocMap(raw);
     if (issues.length > 0) throw new Error(`Карта ${filePath} невалидна:\n${issues.join('\n')}`);
-    sections.push(...(raw as DocSection[]));
+
+    for (const section of docMapSchema.parse(raw)) {
+      if (ids.has(section.id)) {
+        throw new Error(
+          `Карта ${filePath} невалидна: дубликат id ${section.id} встречается в нескольких файлах карт`,
+        );
+      }
+      ids.add(section.id);
+      sections.push(section);
+    }
   }
   return sections;
 }
