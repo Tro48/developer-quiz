@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
 import { paths } from './paths';
@@ -29,24 +29,52 @@ export function batchStamp(date: Date): string {
   );
 }
 
-function makeBatchId(kind: BatchKind, date: Date): string {
-  return `${kind}-${batchStamp(date)}`;
-}
-
-async function readJson<T>(filePath: string): Promise<T | null> {
+async function fileExists(filePath: string): Promise<boolean> {
   try {
-    return JSON.parse(await readFile(filePath, 'utf8')) as T;
-  } catch {
-    return null;
+    await readFile(filePath);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+    throw error;
   }
 }
 
+// В пределах одной секунды метка может совпасть: добавляем числовой суффикс.
+async function uniqueBatchId(kind: BatchKind, date: Date, batchesDir: string): Promise<string> {
+  const base = `${kind}-${batchStamp(date)}`;
+  const dir = path.join(batchesDir, kind);
+
+  for (let attempt = 0; attempt < 1000; attempt += 1) {
+    const candidate = attempt === 0 ? base : `${base}-${attempt + 1}`;
+    const inputExists = await fileExists(path.join(dir, `${candidate}.input.json`));
+    const outputExists = await fileExists(path.join(dir, `${candidate}.output.json`));
+    if (!inputExists && !outputExists) return candidate;
+  }
+
+  throw new Error(`Не удалось подобрать уникальный id батча: ${base}`);
+}
+
+async function readJson<T>(filePath: string): Promise<T | null> {
+  let raw: string;
+  try {
+    raw = await readFile(filePath, 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    throw error;
+  }
+  return JSON.parse(raw) as T;
+}
+
+// Атомарная запись: временный файл + переименование.
 async function writeJson(filePath: string, value: unknown): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, JSON.stringify(value, null, 2), 'utf8');
+  const tempPath = `${filePath}.tmp`;
+  await writeFile(tempPath, JSON.stringify(value, null, 2), 'utf8');
+  await rename(tempPath, filePath);
 }
 
 type BatchFile = {
+  batchId?: unknown;
   questions?: Array<{ id?: unknown }>;
   results?: Array<{ id?: unknown }>;
   verdicts?: Array<{ id?: unknown }>;
@@ -58,8 +86,9 @@ async function idsInBatches(kind: BatchKind, batchesDir: string): Promise<Set<st
   let files: string[] = [];
   try {
     files = await readdir(dir);
-  } catch {
-    return new Set();
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return new Set();
+    throw error;
   }
 
   const ids = new Set<string>();
@@ -101,6 +130,29 @@ function parseGeneratedQuestions(questions: unknown[]): GeneratedQuestion[] {
     if (result.success && result.data.status === 'generated') generated.push(result.data);
   }
   return generated;
+}
+
+function inputIdsOf(questions: unknown[]): string[] {
+  return questions
+    .map((question) => (question as { id?: unknown }).id)
+    .filter((id): id is string => typeof id === 'string');
+}
+
+// Читает входной файл, соответствующий output-файлу, и проверяет его batchId.
+async function readInputBatch(outputPath: string): Promise<{ batchId: string; questions: unknown[] }> {
+  const inputPath = outputPath.replace(/\.output\.json$/, '.input.json');
+  if (inputPath === outputPath) {
+    throw new Error(`Путь вывода должен заканчиваться на .output.json: ${outputPath}`);
+  }
+  const input = await readJson<BatchFile & { questions?: unknown[] }>(inputPath);
+  if (!input) {
+    const batchId = path.basename(outputPath).replace(/\.output\.json$/, '');
+    throw new Error(`Не найден входной файл батча (batchId: ${batchId}): ${inputPath}`);
+  }
+  if (typeof input.batchId !== 'string' || !input.batchId) {
+    throw new Error(`Во входном файле нет batchId: ${inputPath}`);
+  }
+  return { batchId: input.batchId, questions: input.questions ?? [] };
 }
 
 const generationOutputSchema = z.object({
@@ -158,7 +210,7 @@ export async function emitGenerationBatch(
 
   if (selected.length === 0) return null;
 
-  const id = makeBatchId('generation', opts.now ?? new Date());
+  const id = await uniqueBatchId('generation', opts.now ?? new Date(), batchesDir);
   const inputPath = path.join(batchesDir, 'generation', `${id}.input.json`);
   await writeJson(inputPath, {
     batchId: id,
@@ -174,9 +226,36 @@ export async function mergeGenerationBatch(
   opts: BatchOptions = {},
 ): Promise<{ updated: number; rejected: number }> {
   const output = generationOutputSchema.parse((await readJson<unknown>(outputPath)) ?? {});
+  const input = await readInputBatch(outputPath);
+  if (output.batchId !== input.batchId) {
+    throw new Error(`batchId вывода (${output.batchId}) не совпадает с входом (${input.batchId})`);
+  }
+
+  const inputIds = inputIdsOf(input.questions);
+  const resultById = new Map<string, (typeof output.results)[number]>();
+  for (const result of output.results) {
+    if (!inputIds.includes(result.id)) {
+      throw new Error(`Ответ агента содержит id не из батча: ${result.id}`);
+    }
+    if (resultById.has(result.id)) {
+      throw new Error(`Дубликат id в results: ${result.id}`);
+    }
+    resultById.set(result.id, result);
+  }
+
+  const skippedById = new Map<string, string>();
+  for (const skip of output.skipped) {
+    if (!inputIds.includes(skip.id)) {
+      throw new Error(`skipped содержит id не из батча: ${skip.id}`);
+    }
+    if (resultById.has(skip.id) || skippedById.has(skip.id)) {
+      throw new Error(`id встречается несколько раз: ${skip.id}`);
+    }
+    skippedById.set(skip.id, skip.reason);
+  }
+
   const { questions, path: storePath } = await loadStore(opts);
   const merged = [...questions];
-
   const parsedById = new Map(parseParsedQuestions(questions).map((q) => [q.id, q]));
   const indexById = new Map<string, number>();
   merged.forEach((question, index) => {
@@ -185,26 +264,21 @@ export async function mergeGenerationBatch(
   });
 
   let updated = 0;
-  for (const result of output.results) {
-    const source = parsedById.get(result.id);
-    if (!source) continue;
-    const candidate = generatedQuestionSchema.parse({ ...source, ...result, status: 'generated' });
-    const index = indexById.get(candidate.id);
-    if (index === undefined) {
-      indexById.set(candidate.id, merged.length);
-      merged.push(candidate);
-    } else {
-      merged[index] = candidate;
-    }
-    updated += 1;
-  }
-
   let rejected = 0;
-  for (const skip of output.skipped) {
-    const source = parsedById.get(skip.id);
-    const index = indexById.get(skip.id);
+  for (const id of inputIds) {
+    const source = parsedById.get(id);
+    const index = indexById.get(id);
     if (!source || index === undefined) continue;
-    merged[index] = { ...source, status: 'rejected', rejectReason: `генерация: ${skip.reason}` };
+
+    const result = resultById.get(id);
+    if (result) {
+      merged[index] = generatedQuestionSchema.parse({ ...source, ...result, status: 'generated' });
+      updated += 1;
+      continue;
+    }
+
+    const reason = skippedById.get(id) ?? 'агент не вернул результат';
+    merged[index] = { ...source, status: 'rejected', rejectReason: `генерация: ${reason}` };
     rejected += 1;
   }
 
@@ -225,7 +299,7 @@ export async function emitVerificationBatch(
 
   if (selected.length === 0) return null;
 
-  const id = makeBatchId('verification', opts.now ?? new Date());
+  const id = await uniqueBatchId('verification', opts.now ?? new Date(), batchesDir);
   const inputPath = path.join(batchesDir, 'verification', `${id}.input.json`);
   await writeJson(inputPath, {
     batchId: id,
@@ -241,9 +315,25 @@ export async function mergeVerificationBatch(
   opts: BatchOptions = {},
 ): Promise<{ verified: number; rejected: number }> {
   const output = verificationOutputSchema.parse((await readJson<unknown>(outputPath)) ?? {});
+  const input = await readInputBatch(outputPath);
+  if (output.batchId !== input.batchId) {
+    throw new Error(`batchId вывода (${output.batchId}) не совпадает с входом (${input.batchId})`);
+  }
+
+  const inputIds = inputIdsOf(input.questions);
+  const verdictById = new Map<string, (typeof output.verdicts)[number]>();
+  for (const verdict of output.verdicts) {
+    if (!inputIds.includes(verdict.id)) {
+      throw new Error(`Вердикт по id не из батча: ${verdict.id}`);
+    }
+    if (verdictById.has(verdict.id)) {
+      throw new Error(`Дубликат вердикта: ${verdict.id}`);
+    }
+    verdictById.set(verdict.id, verdict);
+  }
+
   const questionsPath = opts.questionsPath ?? path.join(paths.generated, 'questions.json');
   const store = (await readJson<unknown[]>(questionsPath)) ?? [];
-
   const indexById = new Map<string, number>();
   store.forEach((question, index) => {
     const id = (question as { id?: string }).id;
@@ -252,17 +342,21 @@ export async function mergeVerificationBatch(
 
   let verified = 0;
   let rejected = 0;
-  for (const verdict of output.verdicts) {
-    const index = indexById.get(verdict.id);
+  for (const id of inputIds) {
+    const index = indexById.get(id);
     if (index === undefined) continue;
     const current = generatedQuestionSchema.parse(store[index]);
-    if (verdict.verdict === 'verified') {
-      store[index] = { ...current, status: 'verified' };
+    const verdict = verdictById.get(id);
+
+    if (verdict?.verdict === 'verified') {
+      store[index] = { ...current, status: 'verified', rejectReason: undefined };
       verified += 1;
-    } else {
-      store[index] = { ...current, status: 'rejected', rejectReason: verdict.reason };
-      rejected += 1;
+      continue;
     }
+
+    const reason = verdict?.reason ?? 'агент не вернул вердикт';
+    store[index] = { ...current, status: 'rejected', rejectReason: `верификация: ${reason}` };
+    rejected += 1;
   }
 
   await writeJson(questionsPath, store);
