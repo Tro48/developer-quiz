@@ -1,4 +1,4 @@
-import { useRouter, type Href } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { View } from 'react-native';
 
 import { AppText, Button, Screen } from '@/components/ui';
@@ -44,7 +44,7 @@ export function HomeScreen() {
       {currentGrade ? (
         <Button
           label={t('home.startQuiz')}
-          onPress={() => router.push(`/quiz?grade=${currentGrade}` as Href)}
+          onPress={() => router.push({ pathname: '/quiz', params: { grade: currentGrade } })}
         />
       ) : (
         <AppText color="success">{t('home.allDone')}</AppText>
