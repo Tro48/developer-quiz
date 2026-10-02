@@ -61,11 +61,29 @@ describe('buildBank', () => {
     expect(sample.correct_index).toBe(1);
   });
 
-  it('не собирает банк при проблемах валидации', async () => {
+  it('не собирает банк при проблемах валидации и ничего не пишет', async () => {
     const { questionsPath, bankDir } = await setup();
     const broken = JSON.parse(await readFile(questionsPath, 'utf8'));
     broken[0].options = ['Один', 'один ', 'Два', 'Три'];
     await writeFile(questionsPath, JSON.stringify(broken), 'utf8');
+
+    await expect(buildBank({ questionsPath, bankDir })).rejects.toThrow(/Банк не собран/);
+    await expect(readFile(path.join(bankDir, 'questions.json'), 'utf8')).rejects.toThrow();
+    await expect(readFile(path.join(bankDir, 'questions.db'))).rejects.toThrow();
+  });
+
+  it('падает на verified-записи, не проходящей схему вопроса', async () => {
+    const { questionsPath, bankDir } = await setup();
+    const broken = JSON.parse(await readFile(questionsPath, 'utf8'));
+    broken[0] = { ...broken[0], docsRefs: [] };
+    await writeFile(questionsPath, JSON.stringify(broken), 'utf8');
+
+    await expect(buildBank({ questionsPath, bankDir })).rejects.toThrow(/схему вопроса/);
+  });
+
+  it('падает на битом файле базы', async () => {
+    const { questionsPath, bankDir } = await setup();
+    await writeFile(questionsPath, '{ сломано', 'utf8');
 
     await expect(buildBank({ questionsPath, bankDir })).rejects.toThrow(/Банк не собран/);
   });
