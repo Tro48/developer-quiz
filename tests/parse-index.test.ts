@@ -17,11 +17,38 @@ describe('parseAll', () => {
     await cp(path.join(fixturesDir, 'yauhenkavalchuk-js.md'), path.join(rawDir, 'yauhenkavalchuk/js.md'));
     await cp(path.join(fixturesDir, 'hexlet-frontend.md'), path.join(rawDir, 'hexlet/frontend.md'));
 
+    // Добавляем в Hexlet вопрос с текстом, совпадающим с вопросом YauhenKavalchuk:
+    // после классификации id совпадут и дубль схлопнется, победит первый источник.
+    await writeFile(
+      path.join(rawDir, 'hexlet/frontend.md'),
+      [
+        '',
+        '## Middle',
+        '',
+        '### Основы JavaScript',
+        '',
+        '- Типы данных в JavaScript?',
+        '  <details>',
+        '  <summary>Ответ</summary>',
+        '',
+        '  Любой ответ.',
+        '',
+        '  </details>',
+        '',
+      ].join('\n'),
+      { flag: 'a' },
+    );
+
     const parsed = await parseAll({ rawDir, parsedPath });
 
     expect(parsed).toHaveLength(6);
     expect(new Set(parsed.map((q) => q.id)).size).toBe(6);
     expect(parsed.some((q) => q.topic === 'javascript')).toBe(true);
+    expect(parsed.every((q) => q.id.startsWith(`${q.topic}-`))).toBe(true);
+    expect(parsed.every((q) => /^[a-z0-9-]+-[0-9a-f]{8}$/.test(q.id))).toBe(true);
+
+    const duplicate = parsed.find((q) => q.question === 'Типы данных в JavaScript?');
+    expect(duplicate?.source).toBe('yauhenkavalchuk');
 
     // Повторный запуск даёт тот же результат — парсинг идемпотентен.
     const again = await parseAll({ rawDir, parsedPath });

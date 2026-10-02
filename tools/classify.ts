@@ -1,3 +1,4 @@
+import { makeId } from './ids';
 import type { ParsedQuestion } from './types';
 
 // Правила сопоставления заголовков источника каноническим темам.
@@ -18,7 +19,10 @@ export function classifyQuestion(question: ParsedQuestion): ParsedQuestion {
 
   const hint = (question.topicHint ?? '').toLowerCase();
   const match = TOPIC_RULES.find(([pattern]) => pattern.test(hint));
-  return { ...question, topic: match?.[1] ?? 'other' };
+  const topic = match?.[1] ?? 'other';
+  // id зависит от темы: после классификации пересчитываем его, чтобы
+  // соблюдался формат <topic>-<sha1_8> и кросс-источниковые дубли схлопывались.
+  return { ...question, topic, id: makeId(topic, question.question) };
 }
 
 export function classifyAll(questions: ParsedQuestion[]): ParsedQuestion[] {

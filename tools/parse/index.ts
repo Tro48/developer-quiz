@@ -39,8 +39,9 @@ export async function parseAll(opts: ParseOptions = {}): Promise<ParsedQuestion[
       let markdown: string;
       try {
         markdown = await readFile(filePath, 'utf8');
-      } catch {
-        continue;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
+        throw error;
       }
       questions.push(...parseSourceFile(source, file, markdown));
     }
@@ -52,7 +53,7 @@ export async function parseAll(opts: ParseOptions = {}): Promise<ParsedQuestion[
   return unique;
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const parsed = await parseAll();
   console.log(`Разобрано вопросов: ${parsed.length}`);
 }
