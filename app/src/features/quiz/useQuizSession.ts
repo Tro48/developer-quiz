@@ -13,30 +13,43 @@ import { createQuizState, quizReducer, type QuizState } from './quizReducer';
 type QuizSession = {
   state: QuizState;
   loading: boolean;
+  error: boolean;
   answer: (optionIndex: number) => void;
   next: () => void;
+  reload: () => void;
 };
 
 export function useQuizSession(grade: Grade): QuizSession {
   const questionsDb = useSQLiteContext();
   const [userDb, setUserDb] = useState<SQLiteDatabase | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const [state, dispatch] = useReducer(quizReducer, undefined, () => createQuizState([]));
 
   useEffect(() => {
     let active = true;
 
     async function load() {
-      const db = await getUserDb();
-      const [pool, solvedIds] = await Promise.all([
-        getQuestionPool(questionsDb, { grade, topics: [...TOPICS] }),
-        getSolvedIds(db),
-      ]);
-      const picked = pickQuizQuestions(pool, new Set(solvedIds));
-      if (active) {
-        setUserDb(db);
-        dispatch({ type: 'start', questions: picked });
-        setLoading(false);
+      try {
+        const db = await getUserDb();
+        const [pool, solvedIds] = await Promise.all([
+          getQuestionPool(questionsDb, { grade, topics: [...TOPICS] }),
+          getSolvedIds(db),
+        ]);
+        const picked = pickQuizQuestions(pool, new Set(solvedIds));
+        if (active) {
+          setUserDb(db);
+          dispatch({ type: 'start', questions: picked });
+          setLoading(false);
+          setError(false);
+        }
+      } catch (loadError) {
+        console.error('Не удалось загрузить вопросы', loadError);
+        if (active) {
+          setLoading(false);
+          setError(true);
+        }
       }
     }
 
@@ -44,7 +57,7 @@ export function useQuizSession(grade: Grade): QuizSession {
     return () => {
       active = false;
     };
-  }, [questionsDb, grade]);
+  }, [questionsDb, grade, attempt]);
 
   const answer = useCallback(
     (optionIndex: number) => {
@@ -59,5 +72,11 @@ export function useQuizSession(grade: Grade): QuizSession {
 
   const next = useCallback(() => dispatch({ type: 'next' }), []);
 
-  return { state, loading, answer, next };
+  const reload = useCallback(() => {
+    setLoading(true);
+    setError(false);
+    setAttempt((value) => value + 1);
+  }, []);
+
+  return { state, loading, error, answer, next, reload };
 }

@@ -29,7 +29,7 @@ export function QuizScreen() {
   const { t } = useTranslation();
   const params = useLocalSearchParams<{ grade?: string }>();
   const grade = params.grade && isGrade(params.grade) ? params.grade : 'junior';
-  const { state, loading, answer, next } = useQuizSession(grade);
+  const { state, loading, error, answer, next, reload } = useQuizSession(grade);
 
   useEffect(() => {
     if (state.phase === 'finished') {
@@ -47,6 +47,17 @@ export function QuizScreen() {
     return (
       <Screen>
         <AppText color="textMuted">{t('common.loading')}</AppText>
+      </Screen>
+    );
+  }
+
+  if (error) {
+    return (
+      <Screen>
+        <AppText variant="subtitle" color="error">
+          {t('common.loadError')}
+        </AppText>
+        <Button label={t('common.retry')} onPress={reload} />
       </Screen>
     );
   }
