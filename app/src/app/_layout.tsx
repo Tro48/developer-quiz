@@ -3,6 +3,7 @@ import { SQLiteProvider } from 'expo-sqlite';
 import { StatusBar } from 'expo-status-bar';
 
 import { SettingsProvider, useSettings } from '@/features/settings/SettingsProvider';
+import { StartupErrorScreen } from '@/features/settings/StartupErrorScreen';
 import { I18nProvider } from '@/i18n';
 import { ThemeProvider } from '@/theme';
 
@@ -22,13 +23,17 @@ export default function RootLayout() {
 }
 
 function AppShell() {
-  const { theme, language } = useSettings();
+  const { theme, language, status, reload } = useSettings();
 
   return (
     <ThemeProvider name={theme}>
       <I18nProvider language={language}>
         <StatusBar style="light" />
-        <Stack screenOptions={{ headerShown: false }} />
+        {status === 'error' ? (
+          <StartupErrorScreen onRetry={reload} />
+        ) : status === 'ready' ? (
+          <Stack screenOptions={{ headerShown: false }} />
+        ) : null}
       </I18nProvider>
     </ThemeProvider>
   );

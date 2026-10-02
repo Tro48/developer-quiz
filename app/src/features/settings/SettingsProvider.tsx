@@ -18,17 +18,23 @@ import { isThemeName, type ThemeName } from '@/theme';
 const DEFAULT_THEME: ThemeName = 'dark';
 const DEFAULT_LANGUAGE: Language = 'ru';
 
+export type SettingsStatus = 'loading' | 'ready' | 'error';
+
 export type AppSettings = {
   theme: ThemeName;
   language: Language;
+  status: SettingsStatus;
   setTheme: (theme: ThemeName) => void;
   setLanguage: (language: Language) => void;
+  reload: () => void;
 };
 
 const SettingsContext = createContext<AppSettings | null>(null);
 
 export function SettingsProvider({ children }: PropsWithChildren) {
   const [db, setDb] = useState<SQLiteDatabase | null>(null);
+  const [status, setStatus] = useState<SettingsStatus>('loading');
+  const [attempt, setAttempt] = useState(0);
   const [theme, setThemeState] = useState<ThemeName>(DEFAULT_THEME);
   const [language, setLanguageState] = useState<Language>(DEFAULT_LANGUAGE);
 
@@ -36,28 +42,37 @@ export function SettingsProvider({ children }: PropsWithChildren) {
     let cancelled = false;
 
     async function load() {
-      const userDb = await getUserDb();
-      const [storedTheme, storedLanguage] = await Promise.all([
-        getSetting(userDb, 'theme'),
-        getSetting(userDb, 'language'),
-      ]);
-      if (cancelled) {
-        return;
+      try {
+        const userDb = await getUserDb();
+        const [storedTheme, storedLanguage] = await Promise.all([
+          getSetting(userDb, 'theme'),
+          getSetting(userDb, 'language'),
+        ]);
+        if (cancelled) {
+          return;
+        }
+        if (storedTheme && isThemeName(storedTheme)) {
+          setThemeState(storedTheme);
+        }
+        if (storedLanguage && isLanguage(storedLanguage)) {
+          setLanguageState(storedLanguage);
+        }
+        setDb(userDb);
+        setStatus('ready');
+      } catch (error) {
+        console.error('Не удалось инициализировать user.db', error);
+        if (!cancelled) {
+          setDb(null);
+          setStatus('error');
+        }
       }
-      if (storedTheme && isThemeName(storedTheme)) {
-        setThemeState(storedTheme);
-      }
-      if (storedLanguage && isLanguage(storedLanguage)) {
-        setLanguageState(storedLanguage);
-      }
-      setDb(userDb);
     }
 
     void load();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [attempt]);
 
   const setTheme = useCallback(
     (next: ThemeName) => {
@@ -79,14 +94,16 @@ export function SettingsProvider({ children }: PropsWithChildren) {
     [db]
   );
 
-  const value = useMemo<AppSettings | null>(
-    () => (db ? { theme, language, setTheme, setLanguage } : null),
-    [db, theme, language, setTheme, setLanguage]
+  const reload = useCallback(() => {
+    setStatus('loading');
+    setAttempt((value) => value + 1);
+  }, []);
+
+  const value = useMemo<AppSettings>(
+    () => ({ theme, language, status, setTheme, setLanguage, reload }),
+    [theme, language, status, setTheme, setLanguage, reload]
   );
 
-  if (!value) {
-    return null;
-  }
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
 }
 

@@ -2,6 +2,8 @@ export const ru = {
   common: {
     loading: 'Загрузка…',
     error: 'Что-то пошло не так',
+    startupError: 'Не удалось открыть базу данных',
+    retry: 'Повторить',
   },
   home: {
     title: 'Developer Quiz',

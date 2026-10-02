@@ -7,7 +7,10 @@ let userDbPromise: Promise<SQLiteDatabase> | null = null;
 
 export function getUserDb(): Promise<SQLiteDatabase> {
   if (!userDbPromise) {
-    userDbPromise = openAndMigrate();
+    userDbPromise = openAndMigrate().catch((error: unknown) => {
+      userDbPromise = null;
+      throw error;
+    });
   }
   return userDbPromise;
 }
