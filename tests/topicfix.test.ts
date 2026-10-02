@@ -9,6 +9,7 @@ import {
   mergeTopicfixBatch,
   type TopicfixOptions,
 } from '../tools/topicfix';
+import type { TopicOverride } from '../tools/topic-overrides';
 import {
   generatedQuestionSchema,
   parsedQuestionSchema,
@@ -427,5 +428,84 @@ describe('merge topicfix-батчей', () => {
     ).toEqual({ applied: 0, skipped: 0, collisions: 1 });
 
     expect(await readOverrides(paths.overridesPath)).toEqual([]);
+  });
+
+  it('сохраняет посторонние исключения, обновляет и добавляет назначения', async () => {
+    const paths = await setup();
+    const batch = await emit(paths);
+    const [first, second] = paths.questions;
+
+    const stale: TopicOverride = {
+      source: 'hexlet',
+      sourceUrl: SOURCE_URL,
+      question: first.question,
+      topic: 'css',
+    };
+    const unrelated: TopicOverride = {
+      source: 'yauhenkavalchuk',
+      sourceUrl: 'https://youtu.be/example',
+      question: 'Что такое hoisting?',
+      topic: 'javascript',
+    };
+    await mkdir(path.dirname(paths.overridesPath), { recursive: true });
+    await writeFile(paths.overridesPath, JSON.stringify([stale, unrelated]), 'utf8');
+
+    const outputPath = await writeOutput(paths, batch!.batchId, [
+      { id: first.id, topic: 'html' },
+      { id: second.id, topic: 'javascript' },
+    ]);
+
+    expect(
+      await mergeTopicfixBatch(outputPath, {
+        questionsPath: paths.questionsPath,
+        overridesPath: paths.overridesPath,
+      }),
+    ).toEqual({ applied: 2, skipped: 0, collisions: 0 });
+
+    expect(await readOverrides(paths.overridesPath)).toEqual([
+      { ...stale, topic: 'html' },
+      unrelated,
+      {
+        source: 'hexlet',
+        sourceUrl: SOURCE_URL,
+        question: second.question,
+        topic: 'javascript',
+      },
+    ]);
+  });
+
+  it('не трогает store, если реестр исключений невалиден', async () => {
+    const paths = await setup();
+    const batch = await emit(paths);
+    const first = paths.questions[0];
+
+    await mkdir(path.dirname(paths.overridesPath), { recursive: true });
+    await writeFile(
+      paths.overridesPath,
+      JSON.stringify([
+        {
+          source: 'hexlet',
+          sourceUrl: SOURCE_URL,
+          question: 'Посторонний вопрос?',
+          topic: 'python',
+        },
+      ]),
+      'utf8',
+    );
+
+    const outputPath = await writeOutput(paths, batch!.batchId, [{ id: first.id, topic: 'html' }]);
+
+    await expect(
+      mergeTopicfixBatch(outputPath, {
+        questionsPath: paths.questionsPath,
+        overridesPath: paths.overridesPath,
+      }),
+    ).rejects.toThrow(/Неизвестная тема/);
+
+    const store = await readJsonFile<Array<Record<string, unknown>>>(paths.questionsPath);
+    expect(store.find((record) => record.id === first.id)).toMatchObject({
+      topic: 'css',
+      question: first.question,
+    });
   });
 });

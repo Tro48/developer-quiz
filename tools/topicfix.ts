@@ -186,9 +186,9 @@ export async function mergeTopicfixBatch(
     });
   }
 
-  await writeJson(questionsPath, store);
-
   // Фиксируем применённые переносы, чтобы seed и повторный parse не вернули старую тему.
+  // Реестр пишем до store: если запись store упадёт, реестр окажется «впереди»,
+  // и связка parse + seed самовосстановит рабочую базу.
   const overridesPath = opts.overridesPath ?? paths.topicOverrides;
   const overrides = await loadTopicOverrides(overridesPath);
   const byKey = new Map(overrides.map((override) => [overrideKey(override), override]));
@@ -202,7 +202,9 @@ export async function mergeTopicfixBatch(
       topic: record.topic,
     });
   }
+
   await saveTopicOverrides([...byKey.values()], overridesPath);
+  await writeJson(questionsPath, store);
 
   return { applied, skipped, collisions };
 }

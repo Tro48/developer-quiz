@@ -58,8 +58,13 @@ export async function parseAll(opts: ParseOptions = {}): Promise<ParsedQuestion[
     if (!topic || topic === question.topic) return question;
     return { ...question, topic, id: makeId(topic, question.question) };
   });
-  // После смены темы id пересчитан: схлопываем возможные новые коллизии.
-  const unique = [...new Map(withOverrides.map((question) => [question.id, question])).values()];
+  // После смены темы id пересчитан: схлопываем возможные новые коллизии,
+  // как и classifyAll, оставляя первую запись.
+  const byId = new Map<string, (typeof withOverrides)[number]>();
+  for (const question of withOverrides) {
+    if (!byId.has(question.id)) byId.set(question.id, question);
+  }
+  const unique = [...byId.values()];
 
   await mkdir(path.dirname(parsedPath), { recursive: true });
   await writeFile(parsedPath, JSON.stringify(unique, null, 2), 'utf8');
