@@ -37,6 +37,11 @@ export async function getQuestionCounts(db: SQLiteDatabase): Promise<QuestionCou
   );
 }
 
+export async function getAllQuestionIds(db: SQLiteDatabase): Promise<string[]> {
+  const rows = await db.getAllAsync<{ id: string }>('SELECT id FROM questions');
+  return rows.map((row) => row.id);
+}
+
 function toQuestion(row: QuestionRow): Question {
   return {
     id: row.id,

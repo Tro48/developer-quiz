@@ -63,7 +63,10 @@ export function QuizScreen() {
   if (!question) {
     return (
       <Screen>
-        <AppText color="success">{t('home.allDone')}</AppText>
+        <AppText variant="subtitle" color="success">
+          {t('quiz.noQuestions')}
+        </AppText>
+        <Button label={t('common.home')} onPress={() => router.replace('/')} />
       </Screen>
     );
   }

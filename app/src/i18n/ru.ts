@@ -5,6 +5,7 @@ export const ru = {
     startupError: 'Не удалось открыть базу данных',
     loadError: 'Не удалось загрузить данные',
     retry: 'Повторить',
+    home: 'На главную',
   },
   home: {
     title: 'Developer Quiz',
@@ -25,6 +26,7 @@ export const ru = {
     explanation: 'Пояснение',
     next: 'Дальше',
     finish: 'Показать результат',
+    noQuestions: 'В этом грейде больше нечего повторять',
   },
   result: {
     title: 'Квиз завершён',

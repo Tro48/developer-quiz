@@ -27,3 +27,17 @@ export async function markSolved(
     [question.id, question.topic, question.grade, Date.now()]
   );
 }
+
+export async function pruneSolved(db: SQLiteDatabase, validIds: string[]): Promise<void> {
+  const valid = new Set(validIds);
+  const rows = await db.getAllAsync<{ question_id: string }>(
+    'SELECT question_id FROM solved_questions'
+  );
+  const orphans = rows
+    .map((row) => row.question_id)
+    .filter((questionId) => !valid.has(questionId));
+
+  for (const questionId of orphans) {
+    await db.runAsync('DELETE FROM solved_questions WHERE question_id = ?', [questionId]);
+  }
+}

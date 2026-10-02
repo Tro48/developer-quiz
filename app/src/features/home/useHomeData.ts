@@ -2,8 +2,8 @@ import { useCallback, useState } from 'react';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useFocusEffect } from 'expo-router';
 
-import { getQuestionCounts } from '@/db/questions';
-import { getSolvedCounts } from '@/db/progress';
+import { getAllQuestionIds, getQuestionCounts } from '@/db/questions';
+import { getSolvedCounts, pruneSolved } from '@/db/progress';
 import { getUserDb } from '@/db/userDb';
 import {
   buildStats,
@@ -40,10 +40,12 @@ export function useHomeData(): HomeData {
       async function load() {
         try {
           const userDb = await getUserDb();
-          const [totals, solved] = await Promise.all([
+          const [totals, questionIds] = await Promise.all([
             getQuestionCounts(questionsDb),
-            getSolvedCounts(userDb),
+            getAllQuestionIds(questionsDb),
           ]);
+          await pruneSolved(userDb, questionIds);
+          const solved = await getSolvedCounts(userDb);
           const stats = buildStats([...TOPICS], totals, solved);
           const progress = computeGradeProgress(stats);
           if (active) {
