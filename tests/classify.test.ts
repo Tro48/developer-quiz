@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { classifyAll, classifyQuestion } from '../tools/classify';
+import { isKnownTopic } from '../tools/taxonomy';
 import type { ParsedQuestion } from '../tools/types';
 
 const base: Omit<ParsedQuestion, 'id' | 'topic' | 'topicHint' | 'question'> = {
@@ -37,7 +38,28 @@ describe('classifyQuestion', () => {
   });
 
   it('не уводит «инфраструктуру» в алгоритмы', () => {
-    expect(classifyQuestion(make('abcdef', 'Инструменты и инфраструктура')).topic).toBe('other');
+    expect(classifyQuestion(make('abcdef', 'Инструменты и инфраструктура')).topic).toBe('tools');
+  });
+
+  it('относит Git и инструменты к tools', () => {
+    expect(classifyQuestion(make('xyz', 'Git и процессы разработки')).topic).toBe('tools');
+    expect(classifyQuestion(make('xyzw', 'Инструменты и инфраструктура')).topic).toBe('tools');
+  });
+
+  it('все известные заголовки дают канонические темы', () => {
+    const headings = [
+      'Основы JavaScript',
+      'React и состояние приложения',
+      'TypeScript',
+      'Frontend и верстка (HTML/CSS)',
+      'Общие вопросы (Soft Skills, опыт и мотивация)',
+      'Git и процессы разработки',
+      'Инструменты и инфраструктура',
+      'Кулинария',
+    ];
+    for (const heading of headings) {
+      expect(isKnownTopic(classifyQuestion(make(`q${heading.length}`, heading)).topic)).toBe(true);
+    }
   });
 });
 

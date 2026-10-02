@@ -12,6 +12,7 @@ const TOPIC_RULES: [RegExp, string][] = [
   [/алгоритм|структур.*данн/i, 'algorithms'],
   [/сет|http|браузер|network/i, 'web'],
   [/soft skills|мотивац|опыт/i, 'soft-skills'],
+  [/инструмент|инфраструктур|\bgit\b/i, 'tools'],
 ];
 
 export function classifyQuestion(question: ParsedQuestion): ParsedQuestion {
