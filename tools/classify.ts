@@ -9,7 +9,7 @@ const TOPIC_RULES: [RegExp, string][] = [
   [/javascript|event loop|промис|async|\bjs\b/i, 'javascript'],
   [/css|flexbox|grid|вёрстк/i, 'css'],
   [/html|семантик/i, 'html'],
-  [/алгоритм|структур/i, 'algorithms'],
+  [/алгоритм|структур.*данн/i, 'algorithms'],
   [/сет|http|браузер|network/i, 'web'],
   [/soft skills|мотивац|опыт/i, 'soft-skills'],
 ];

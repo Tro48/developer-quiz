@@ -35,6 +35,10 @@ describe('classifyQuestion', () => {
   it('неизвестный заголовок уходит в other', () => {
     expect(classifyQuestion(make('abcde', 'Кулинария')).topic).toBe('other');
   });
+
+  it('не уводит «инфраструктуру» в алгоритмы', () => {
+    expect(classifyQuestion(make('abcdef', 'Инструменты и инфраструктура')).topic).toBe('other');
+  });
 });
 
 describe('classifyAll', () => {
