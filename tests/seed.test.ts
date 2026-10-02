@@ -6,7 +6,11 @@ import { makeId } from '../tools/ids';
 import { seedQuestions } from '../tools/seed';
 import type { ParsedQuestion } from '../tools/types';
 
-function makeParsed(topic: string, question: string): ParsedQuestion {
+function makeParsed(
+  topic: string,
+  question: string,
+  overrides: Partial<ParsedQuestion> = {},
+): ParsedQuestion {
   return {
     id: makeId(topic, question),
     topic,
@@ -16,6 +20,7 @@ function makeParsed(topic: string, question: string): ParsedQuestion {
     question,
     answer: '',
     status: 'parsed',
+    ...overrides,
   };
 }
 
@@ -39,13 +44,41 @@ async function readStore(filePath: string) {
   return JSON.parse(await readFile(filePath, 'utf8')) as Array<Record<string, unknown>>;
 }
 
+// Сценарий смены темы: в базе старый verified-вопрос, в parsed — тот же текст
+// из того же источника, но с канонической темой javascript и новым id.
+async function setupTopicChange() {
+  const { parsedPath, questionsPath } = await setup();
+  const parsedQuestion = makeParsed('javascript', 'Вопрос 1?', { source: 'hexlet' });
+  await writeFile(parsedPath, JSON.stringify([parsedQuestion]), 'utf8');
+
+  const verified = {
+    id: 'unclassified-aaaaaaaa',
+    topic: 'unclassified',
+    topicHint: 'unclassified',
+    grade: 'junior',
+    source: 'hexlet',
+    sourceUrl: parsedQuestion.sourceUrl,
+    question: parsedQuestion.question,
+    answer: '',
+    status: 'verified',
+    options: ['А', 'Б', 'В', 'Г'],
+    correctIndex: 0,
+    explanation: 'Пояснение.',
+    docsRefs: ['https://developer.mozilla.org/ru/docs/Web/JavaScript'],
+  };
+  await mkdir(path.dirname(questionsPath), { recursive: true });
+  await writeFile(questionsPath, JSON.stringify([verified]), 'utf8');
+
+  return { parsedPath, questionsPath, parsedQuestion, verified };
+}
+
 describe('seedQuestions', () => {
   it('создаёт рабочую базу из parsed-файла, если её ещё нет', async () => {
     const { parsedPath, questionsPath, questions } = await setup();
 
     const result = await seedQuestions({ parsedPath, questionsPath });
 
-    expect(result).toEqual({ added: 3, total: 3 });
+    expect(result).toEqual({ added: 3, migrated: 0, total: 3 });
     const store = await readStore(questionsPath);
     expect(store).toEqual(questions);
     expect(store.every((question) => question.status === 'parsed')).toBe(true);
@@ -68,7 +101,7 @@ describe('seedQuestions', () => {
 
     const result = await seedQuestions({ parsedPath, questionsPath });
 
-    expect(result).toEqual({ added: 2, total: 4 });
+    expect(result).toEqual({ added: 2, migrated: 0, total: 4 });
     const store = await readStore(questionsPath);
     expect(store[0]).toEqual(verified);
     expect(store[1]).toEqual(foreign);
@@ -86,7 +119,65 @@ describe('seedQuestions', () => {
     await seedQuestions({ parsedPath, questionsPath });
     const second = await seedQuestions({ parsedPath, questionsPath });
 
-    expect(second).toEqual({ added: 0, total: 3 });
+    expect(second).toEqual({ added: 0, migrated: 0, total: 3 });
+  });
+
+  it('переносит запись на новый id при смене темы, сохраняя статус и содержимое', async () => {
+    const { parsedPath, questionsPath, parsedQuestion } = await setupTopicChange();
+
+    const result = await seedQuestions({ parsedPath, questionsPath });
+
+    expect(result).toEqual({ added: 0, migrated: 1, total: 1 });
+    const store = await readStore(questionsPath);
+    expect(store).toHaveLength(1);
+    expect(store[0].id).toBe(parsedQuestion.id);
+    expect(store[0].topic).toBe('javascript');
+    expect(store[0].topicHint).toBe('javascript');
+    expect(store[0].status).toBe('verified');
+    expect(store[0].options).toEqual(['А', 'Б', 'В', 'Г']);
+    expect(store[0].correctIndex).toBe(0);
+    expect(store[0].explanation).toBe('Пояснение.');
+    expect(store[0].docsRefs).toEqual([
+      'https://developer.mozilla.org/ru/docs/Web/JavaScript',
+    ]);
+  });
+
+  it('повторный запуск после переноса ничего не меняет', async () => {
+    const { parsedPath, questionsPath } = await setupTopicChange();
+
+    await seedQuestions({ parsedPath, questionsPath });
+    const second = await seedQuestions({ parsedPath, questionsPath });
+
+    expect(second).toEqual({ added: 0, migrated: 0, total: 1 });
+    expect(await readStore(questionsPath)).toHaveLength(1);
+  });
+
+  it('добавляет запись, если совпадает только текст, а источник другой', async () => {
+    const { parsedPath, questionsPath } = await setup();
+    const parsedQuestion = makeParsed('javascript', 'Вопрос 1?');
+    await writeFile(parsedPath, JSON.stringify([parsedQuestion]), 'utf8');
+
+    const foreignSource = {
+      ...parsedQuestion,
+      id: 'unclassified-bbbbbbbb',
+      topic: 'unclassified',
+      topicHint: 'unclassified',
+      sourceUrl: 'https://youtu.be/other',
+      status: 'verified',
+      options: ['А', 'Б', 'В', 'Г'],
+      correctIndex: 0,
+      explanation: 'Пояснение.',
+      docsRefs: ['https://developer.mozilla.org/ru/docs/Web/JavaScript'],
+    };
+    await mkdir(path.dirname(questionsPath), { recursive: true });
+    await writeFile(questionsPath, JSON.stringify([foreignSource]), 'utf8');
+
+    const result = await seedQuestions({ parsedPath, questionsPath });
+
+    expect(result).toEqual({ added: 1, migrated: 0, total: 2 });
+    const store = await readStore(questionsPath);
+    expect(store).toHaveLength(2);
+    expect(store[1]).toEqual(parsedQuestion);
   });
 
   it('падает, если parsed-файл отсутствует', async () => {

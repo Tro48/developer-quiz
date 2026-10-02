@@ -1,6 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { normalizeQuestionText } from './ids';
 import { paths } from './paths';
 import { parsedQuestionSchema } from './types';
 import { readQuestionsFile } from './validate';
@@ -9,6 +10,34 @@ export type SeedOptions = {
   parsedPath?: string;
   questionsPath?: string;
 };
+
+export type SeedResult = {
+  added: number;
+  migrated: number;
+  total: number;
+};
+
+type StoredQuestion = {
+  id?: unknown;
+  topic?: unknown;
+  topicHint?: unknown;
+  question?: unknown;
+  source?: unknown;
+  sourceUrl?: unknown;
+};
+
+// Ключ одного и того же вопроса из одного источника: id меняется при смене темы,
+// контент — нет.
+function contentKey(question: StoredQuestion): string | null {
+  if (
+    typeof question.source !== 'string' ||
+    typeof question.sourceUrl !== 'string' ||
+    typeof question.question !== 'string'
+  ) {
+    return null;
+  }
+  return `${question.source}|${question.sourceUrl}|${normalizeQuestionText(question.question)}`;
+}
 
 async function readStore(filePath: string): Promise<unknown[]> {
   try {
@@ -22,10 +51,9 @@ async function readStore(filePath: string): Promise<unknown[]> {
 }
 
 // Добавляет в рабочую базу новые вопросы из parsed/all.json, не трогая уже
-// существующие записи и их статусы. Идемпотентно.
-export async function seedQuestions(
-  opts: SeedOptions = {},
-): Promise<{ added: number; total: number }> {
+// существующие записи и их статусы. Если у существующего вопроса сменилась тема
+// (и вместе с ней id), переносит запись на новый id. Идемпотентно.
+export async function seedQuestions(opts: SeedOptions = {}): Promise<SeedResult> {
   const parsedPath = opts.parsedPath ?? path.join(paths.parsed, 'all.json');
   const questionsPath = opts.questionsPath ?? path.join(paths.generated, 'questions.json');
 
@@ -35,30 +63,65 @@ export async function seedQuestions(
   }
 
   const store = await readStore(questionsPath);
-  const known = new Set(
-    store
-      .map((question) => (question as { id?: unknown }).id)
-      .filter((id): id is string => typeof id === 'string'),
-  );
+  const indexById = new Map<string, number>();
+  const indexByContent = new Map<string, number>();
+  store.forEach((question, index) => {
+    const stored = question as StoredQuestion;
+    if (typeof stored.id === 'string' && !indexById.has(stored.id)) {
+      indexById.set(stored.id, index);
+    }
+    const key = contentKey(stored);
+    if (key && !indexByContent.has(key)) {
+      indexByContent.set(key, index);
+    }
+  });
 
-  const added = [];
+  let added = 0;
+  let migrated = 0;
+
   for (const question of parsed) {
     const candidate = parsedQuestionSchema.safeParse(question);
     if (!candidate.success) continue;
-    if (known.has(candidate.data.id)) continue;
-    known.add(candidate.data.id);
-    added.push(candidate.data);
+    const record = candidate.data;
+
+    if (indexById.has(record.id)) continue;
+
+    const key = contentKey(record);
+    const existingIndex = key ? indexByContent.get(key) : undefined;
+
+    if (existingIndex === undefined) {
+      store.push(record);
+      indexById.set(record.id, store.length - 1);
+      if (key) indexByContent.set(key, store.length - 1);
+      added += 1;
+      continue;
+    }
+
+    const existing = store[existingIndex] as StoredQuestion;
+    if (existing.id !== record.id || existing.topic !== record.topic) {
+      store[existingIndex] = {
+        ...(store[existingIndex] as Record<string, unknown>),
+        id: record.id,
+        topic: record.topic,
+        topicHint: record.topicHint,
+      };
+      if (typeof existing.id === 'string') indexById.delete(existing.id);
+      indexById.set(record.id, existingIndex);
+      migrated += 1;
+    }
   }
 
   await mkdir(path.dirname(questionsPath), { recursive: true });
   const tempPath = `${questionsPath}.tmp`;
-  await writeFile(tempPath, JSON.stringify([...store, ...added], null, 2), 'utf8');
+  await writeFile(tempPath, JSON.stringify(store, null, 2), 'utf8');
   await rename(tempPath, questionsPath);
 
-  return { added: added.length, total: store.length + added.length };
+  return { added, migrated, total: store.length };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const result = await seedQuestions();
-  console.log(`Добавлено вопросов: ${result.added}, всего в рабочей базе: ${result.total}`);
+  console.log(
+    `Добавлено вопросов: ${result.added}, перенесено при смене темы: ${result.migrated}, всего в рабочей базе: ${result.total}`,
+  );
 }
