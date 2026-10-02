@@ -47,6 +47,11 @@ describe('validateBankQuestions', () => {
     expect(issues.some((issue) => issue.message.includes('неизвестная тема'))).toBe(true);
   });
 
+  it('ловит id, не соответствующий теме', () => {
+    const issues = validateBankQuestions([{ ...validQuestion, topic: 'react' }]);
+    expect(issues.some((issue) => issue.message.includes('id не соответствует теме'))).toBe(true);
+  });
+
   it('банк не принимает темы вне ядра', () => {
     const issues = validateBankQuestions([{ ...validQuestion, topic: 'algorithms' }]);
     expect(issues.some((issue) => issue.message.includes('не входит в ядро'))).toBe(true);
@@ -66,7 +71,9 @@ describe('validateVerified', () => {
   });
 
   it('validateVerified принимает известную резервную тему', () => {
-    expect(validateVerified([{ ...validQuestion, topic: 'algorithms' }])).toEqual([]);
+    expect(
+      validateVerified([{ ...validQuestion, id: 'algorithms-deadbeef', topic: 'algorithms' }]),
+    ).toEqual([]);
   });
 });
 

@@ -3,7 +3,7 @@ import type { ParsedQuestion } from './types';
 
 // Правила сопоставления заголовков источника каноническим темам.
 // Порядок важен: первое совпадение выигрывает.
-const TOPIC_RULES: [RegExp, string][] = [
+export const TOPIC_RULES: [RegExp, string][] = [
   [/typescript|\bts\b/i, 'typescript'],
   [/react|redux|mobx|хук/i, 'react'],
   [/javascript|event loop|промис|async|\bjs\b/i, 'javascript'],

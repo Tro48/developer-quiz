@@ -42,6 +42,10 @@ function validateQuestions(questions: unknown[], opts: ValidateOptions = {}): Va
       });
     }
 
+    if (!parsed.data.id.startsWith(`${parsed.data.topic}-`)) {
+      issues.push({ id: parsed.data.id, message: 'id не соответствует теме' });
+    }
+
     if (seen.has(parsed.data.id)) {
       issues.push({ id: parsed.data.id, message: 'дубликат id' });
     }

@@ -191,6 +191,24 @@ describe('батчи генерации', () => {
 
     await expect(mergeGenerationBatch(outputPath, paths)).rejects.toThrow(/не из батча/);
   });
+
+  it('по умолчанию берёт только темы ядра', async () => {
+    const paths = await setup();
+    const parsed = await readJsonFile(paths.parsedPath);
+    parsed.push({
+      ...makeParsed('Вопрос про Vue?'),
+      id: makeId('vue', 'Вопрос про Vue?'),
+      topic: 'vue',
+      topicHint: 'vue',
+    });
+    await writeFile(paths.parsedPath, JSON.stringify(parsed), 'utf8');
+
+    const batch = await emitGenerationBatch({ ...paths, size: 10 });
+    const input = await readJsonFile(batch!.inputPath);
+
+    expect(input.questions).toHaveLength(3);
+    expect(input.questions.every((q: { topic: string }) => q.topic === 'javascript')).toBe(true);
+  });
 });
 
 describe('батчи верификации', () => {
@@ -294,5 +312,30 @@ describe('батчи верификации', () => {
     await expect(
       mergeVerificationBatch(outputPath, { questionsPath: paths.questionsPath }),
     ).rejects.toThrow(/причина/i);
+  });
+
+  it('по умолчанию берёт только темы ядра', async () => {
+    const paths = await setup();
+    await generateAll(paths);
+
+    const store = await readJsonFile(paths.questionsPath);
+    const template = store.find((q: { status: string }) => q.status === 'generated');
+    store.push({
+      ...template,
+      id: makeId('vue', 'Вопрос про Vue?'),
+      topic: 'vue',
+      question: 'Вопрос про Vue?',
+    });
+    await writeFile(paths.questionsPath, JSON.stringify(store), 'utf8');
+
+    const verification = await emitVerificationBatch({
+      questionsPath: paths.questionsPath,
+      batchesDir: paths.batchesDir,
+      size: 10,
+    });
+    const input = await readJsonFile(verification!.inputPath);
+
+    expect(input.questions).toHaveLength(3);
+    expect(input.questions.every((q: { topic: string }) => q.topic === 'javascript')).toBe(true);
   });
 });

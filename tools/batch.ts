@@ -2,6 +2,7 @@ import { mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
 import { paths } from './paths';
+import { CORE_TOPIC_SLUGS } from './taxonomy';
 import {
   GRADES,
   generatedQuestionSchema,
@@ -16,6 +17,7 @@ export type BatchOptions = {
   batchesDir?: string;
   now?: Date;
   size?: number;
+  allowedTopics?: readonly string[];
 };
 
 type BatchKind = 'generation' | 'verification';
@@ -202,10 +204,12 @@ export async function emitGenerationBatch(
 ): Promise<{ batchId: string; inputPath: string } | null> {
   const batchesDir = opts.batchesDir ?? paths.batches;
   const size = opts.size ?? 10;
+  const allowedTopics = opts.allowedTopics ?? CORE_TOPIC_SLUGS;
   const { questions } = await loadStore(opts);
   const used = await idsInBatches('generation', batchesDir);
   const selected = parseParsedQuestions(questions)
     .filter((question) => !used.has(question.id))
+    .filter((question) => allowedTopics.includes(question.topic))
     .slice(0, size);
 
   if (selected.length === 0) return null;
@@ -291,9 +295,11 @@ export async function emitVerificationBatch(
 ): Promise<{ batchId: string; inputPath: string } | null> {
   const batchesDir = opts.batchesDir ?? paths.batches;
   const size = opts.size ?? 10;
+  const allowedTopics = opts.allowedTopics ?? CORE_TOPIC_SLUGS;
   const { questions } = await loadStore(opts);
   const used = await idsInBatches('verification', batchesDir);
   const selected = parseGeneratedQuestions(questions)
+    .filter((question) => allowedTopics.includes(question.topic))
     .filter((question) => !used.has(question.id))
     .slice(0, size);
 
