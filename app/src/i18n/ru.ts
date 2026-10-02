@@ -3,6 +3,7 @@ export const ru = {
     loading: 'Загрузка…',
     error: 'Что-то пошло не так',
     startupError: 'Не удалось открыть базу данных',
+    loadError: 'Не удалось загрузить данные',
     retry: 'Повторить',
   },
   home: {

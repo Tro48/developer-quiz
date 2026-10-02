@@ -15,30 +15,50 @@ import { TOPICS, type Grade } from '@/domain/types';
 
 type HomeData = {
   loading: boolean;
+  error: boolean;
   progress: GradeProgress[];
   currentGrade: Grade | null;
+  reload: () => void;
 };
 
-const EMPTY: HomeData = { loading: true, progress: [], currentGrade: null };
+const EMPTY: Omit<HomeData, 'reload'> = {
+  loading: true,
+  error: false,
+  progress: [],
+  currentGrade: null,
+};
 
 export function useHomeData(): HomeData {
   const questionsDb = useSQLiteContext();
-  const [data, setData] = useState<HomeData>(EMPTY);
+  const [attempt, setAttempt] = useState(0);
+  const [data, setData] = useState<Omit<HomeData, 'reload'>>(EMPTY);
 
   useFocusEffect(
     useCallback(() => {
       let active = true;
 
       async function load() {
-        const userDb = await getUserDb();
-        const [totals, solved] = await Promise.all([
-          getQuestionCounts(questionsDb),
-          getSolvedCounts(userDb),
-        ]);
-        const stats = buildStats([...TOPICS], totals, solved);
-        const progress = computeGradeProgress(stats);
-        if (active) {
-          setData({ loading: false, progress, currentGrade: findCurrentGrade(progress) });
+        try {
+          const userDb = await getUserDb();
+          const [totals, solved] = await Promise.all([
+            getQuestionCounts(questionsDb),
+            getSolvedCounts(userDb),
+          ]);
+          const stats = buildStats([...TOPICS], totals, solved);
+          const progress = computeGradeProgress(stats);
+          if (active) {
+            setData({
+              loading: false,
+              error: false,
+              progress,
+              currentGrade: findCurrentGrade(progress),
+            });
+          }
+        } catch (error) {
+          console.error('Не удалось загрузить прогресс', error);
+          if (active) {
+            setData({ loading: false, error: true, progress: [], currentGrade: null });
+          }
         }
       }
 
@@ -46,8 +66,13 @@ export function useHomeData(): HomeData {
       return () => {
         active = false;
       };
-    }, [questionsDb])
+    }, [questionsDb, attempt])
   );
 
-  return data;
+  const reload = useCallback(() => {
+    setData((prev) => ({ ...prev, loading: true, error: false }));
+    setAttempt((value) => value + 1);
+  }, []);
+
+  return { ...data, reload };
 }

@@ -12,12 +12,23 @@ export function HomeScreen() {
   const router = useRouter();
   const theme = useTheme();
   const { t } = useTranslation();
-  const { loading, progress, currentGrade } = useHomeData();
+  const { loading, error, progress, currentGrade, reload } = useHomeData();
 
   if (loading) {
     return (
       <Screen>
         <AppText color="textMuted">{t('common.loading')}</AppText>
+      </Screen>
+    );
+  }
+
+  if (error) {
+    return (
+      <Screen>
+        <AppText variant="subtitle" color="error">
+          {t('common.loadError')}
+        </AppText>
+        <Button label={t('common.retry')} onPress={reload} />
       </Screen>
     );
   }
