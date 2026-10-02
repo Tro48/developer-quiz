@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { makeId } from '../tools/ids';
 import { parseAll } from '../tools/parse/index';
 
 const fixturesDir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
@@ -56,6 +57,49 @@ describe('parseAll', () => {
 
     const fromDisk = JSON.parse(await readFile(parsedPath, 'utf8'));
     expect(fromDisk).toHaveLength(6);
+  });
+
+  it('применяет исключение темы и пересчитывает id', async () => {
+    const rawDir = await mkdtemp(path.join(tmpdir(), 'dq-raw-'));
+    const parsedPath = path.join(await mkdtemp(path.join(tmpdir(), 'dq-parsed-')), 'all.json');
+    const overridesPath = path.join(
+      await mkdtemp(path.join(tmpdir(), 'dq-overrides-')),
+      'topic-overrides.json',
+    );
+
+    await mkdir(path.join(rawDir, 'hexlet'), { recursive: true });
+    await cp(path.join(fixturesDir, 'hexlet-frontend.md'), path.join(rawDir, 'hexlet/frontend.md'));
+
+    // Вопрос из секции «Общие вопросы (Soft Skills, опыт и мотивация)» по умолчанию
+    // классифицируется как soft-skills; исключение переносит его в javascript.
+    const question = 'Решал ли какие-то задачки-каты? Codebattle, Codewars, Leetcode?';
+    await writeFile(
+      overridesPath,
+      JSON.stringify([
+        {
+          source: 'hexlet',
+          sourceUrl:
+            'https://raw.githubusercontent.com/Hexlet/ru-interview-questions/main/questions/frontend.md',
+          question,
+          topic: 'javascript',
+        },
+      ]),
+      'utf8',
+    );
+
+    const parsed = await parseAll({ rawDir, parsedPath, overridesPath });
+
+    const moved = parsed.find((item) => item.question === question)!;
+    expect(moved.topic).toBe('javascript');
+    expect(moved.id).toBe(makeId('javascript', question));
+
+    // Остальные вопросы секции исключение не затрагивает.
+    const untouched = parsed.find(
+      (item) =>
+        item.topicHint === 'Общие вопросы (Soft Skills, опыт и мотивация)' &&
+        item.question !== question,
+    );
+    expect(untouched?.topic).toBe('soft-skills');
   });
 
   it('не падает, если raw пуст', async () => {

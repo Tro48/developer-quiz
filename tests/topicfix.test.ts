@@ -20,6 +20,7 @@ const SOURCE_URL = 'https://ru.hexlet.io/courses/js-basics';
 
 type Paths = {
   questionsPath: string;
+  overridesPath: string;
   batchesDir: string;
   questions: ParsedQuestion[];
 };
@@ -46,6 +47,7 @@ function parsedQuestion(
 async function setup(): Promise<Paths> {
   const root = await mkdtemp(path.join(tmpdir(), 'dq-topicfix-'));
   const questionsPath = path.join(root, 'generated', 'questions.json');
+  const overridesPath = path.join(root, 'content', 'topic-overrides.json');
   const batchesDir = path.join(root, 'batches');
 
   const questions = [
@@ -72,11 +74,21 @@ async function setup(): Promise<Paths> {
   await mkdir(path.dirname(questionsPath), { recursive: true });
   await writeFile(questionsPath, JSON.stringify([...questions, generated]), 'utf8');
 
-  return { questionsPath, batchesDir, questions };
+  return { questionsPath, overridesPath, batchesDir, questions };
 }
 
 async function readJsonFile<T>(filePath: string): Promise<T> {
   return JSON.parse(await readFile(filePath, 'utf8')) as T;
+}
+
+// Пустой список, если реестр ещё не создан.
+async function readOverrides(filePath: string): Promise<unknown[]> {
+  try {
+    return JSON.parse(await readFile(filePath, 'utf8')) as unknown[];
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+    throw error;
+  }
 }
 
 function emit(paths: Paths, opts: TopicfixOptions = {}) {
@@ -136,7 +148,10 @@ describe('merge topicfix-батчей', () => {
       { id: second.id, topic: 'css' },
     ]);
 
-    expect(await mergeTopicfixBatch(outputPath, { questionsPath: paths.questionsPath })).toEqual({
+    expect(await mergeTopicfixBatch(outputPath, {
+      questionsPath: paths.questionsPath,
+      overridesPath: paths.overridesPath,
+    })).toEqual({
       applied: 1,
       skipped: 1,
       collisions: 0,
@@ -173,12 +188,18 @@ describe('merge topicfix-батчей', () => {
       { id: second.id, topic: 'html' },
     ]);
 
-    expect(await mergeTopicfixBatch(outputPath, { questionsPath: paths.questionsPath })).toEqual({
+    expect(await mergeTopicfixBatch(outputPath, {
+      questionsPath: paths.questionsPath,
+      overridesPath: paths.overridesPath,
+    })).toEqual({
       applied: 2,
       skipped: 0,
       collisions: 0,
     });
-    expect(await mergeTopicfixBatch(outputPath, { questionsPath: paths.questionsPath })).toEqual({
+    expect(await mergeTopicfixBatch(outputPath, {
+      questionsPath: paths.questionsPath,
+      overridesPath: paths.overridesPath,
+    })).toEqual({
       applied: 0,
       skipped: 2,
       collisions: 0,
@@ -197,7 +218,10 @@ describe('merge topicfix-батчей', () => {
       { id: second.id, topic: 'css' },
     ]);
 
-    expect(await mergeTopicfixBatch(outputPath, { questionsPath: paths.questionsPath })).toEqual({
+    expect(await mergeTopicfixBatch(outputPath, {
+      questionsPath: paths.questionsPath,
+      overridesPath: paths.overridesPath,
+    })).toEqual({
       applied: 1,
       skipped: 1,
       collisions: 0,
@@ -216,7 +240,10 @@ describe('merge topicfix-батчей', () => {
     await writeFile(paths.questionsPath, JSON.stringify(store), 'utf8');
 
     const outputPath = await writeOutput(paths, batch!.batchId, [{ id: first.id, topic: 'html' }]);
-    expect(await mergeTopicfixBatch(outputPath, { questionsPath: paths.questionsPath })).toEqual({
+    expect(await mergeTopicfixBatch(outputPath, {
+      questionsPath: paths.questionsPath,
+      overridesPath: paths.overridesPath,
+    })).toEqual({
       applied: 1,
       skipped: 0,
       collisions: 0,
@@ -244,7 +271,10 @@ describe('merge topicfix-батчей', () => {
     store.push(occupied);
     await writeFile(paths.questionsPath, JSON.stringify(store), 'utf8');
 
-    expect(await mergeTopicfixBatch(outputPath, { questionsPath: paths.questionsPath })).toEqual({
+    expect(await mergeTopicfixBatch(outputPath, {
+      questionsPath: paths.questionsPath,
+      overridesPath: paths.overridesPath,
+    })).toEqual({
       applied: 0,
       skipped: 1,
       collisions: 1,
@@ -277,7 +307,10 @@ describe('merge topicfix-батчей', () => {
     ]);
 
     await expect(
-      mergeTopicfixBatch(outputPath, { questionsPath: paths.questionsPath }),
+      mergeTopicfixBatch(outputPath, {
+        questionsPath: paths.questionsPath,
+        overridesPath: paths.overridesPath,
+      }),
     ).rejects.toThrow(/не из батча/);
   });
 
@@ -289,7 +322,10 @@ describe('merge topicfix-батчей', () => {
     ]);
 
     await expect(
-      mergeTopicfixBatch(outputPath, { questionsPath: paths.questionsPath }),
+      mergeTopicfixBatch(outputPath, {
+        questionsPath: paths.questionsPath,
+        overridesPath: paths.overridesPath,
+      }),
     ).rejects.toThrow(/Неизвестная тема/);
   });
 
@@ -304,7 +340,92 @@ describe('merge topicfix-батчей', () => {
     );
 
     await expect(
-      mergeTopicfixBatch(outputPath, { questionsPath: paths.questionsPath }),
+      mergeTopicfixBatch(outputPath, {
+        questionsPath: paths.questionsPath,
+        overridesPath: paths.overridesPath,
+      }),
     ).rejects.toThrow(/не совпадает/);
+  });
+
+  it('пишет исключение в переданный overridesPath по применённой записи', async () => {
+    const paths = await setup();
+    const batch = await emit(paths);
+    const [first, second] = paths.questions;
+    const outputPath = await writeOutput(paths, batch!.batchId, [
+      { id: first.id, topic: 'html' },
+      { id: second.id, topic: 'css' },
+    ]);
+
+    await mergeTopicfixBatch(outputPath, {
+      questionsPath: paths.questionsPath,
+      overridesPath: paths.overridesPath,
+    });
+
+    expect(await readOverrides(paths.overridesPath)).toEqual([
+      {
+        source: 'hexlet',
+        sourceUrl: SOURCE_URL,
+        question: first.question,
+        topic: 'html',
+      },
+    ]);
+  });
+
+  it('повторный merge не плодит дубликаты исключений', async () => {
+    const paths = await setup();
+    const batch = await emit(paths);
+    const first = paths.questions[0];
+    const outputPath = await writeOutput(paths, batch!.batchId, [{ id: first.id, topic: 'html' }]);
+
+    await mergeTopicfixBatch(outputPath, {
+      questionsPath: paths.questionsPath,
+      overridesPath: paths.overridesPath,
+    });
+    await mergeTopicfixBatch(outputPath, {
+      questionsPath: paths.questionsPath,
+      overridesPath: paths.overridesPath,
+    });
+
+    expect(await readOverrides(paths.overridesPath)).toHaveLength(1);
+  });
+
+  it('не пишет исключение для no-op', async () => {
+    const paths = await setup();
+    const batch = await emit(paths);
+    const second = paths.questions[1];
+    const outputPath = await writeOutput(paths, batch!.batchId, [{ id: second.id, topic: 'css' }]);
+
+    expect(
+      await mergeTopicfixBatch(outputPath, {
+        questionsPath: paths.questionsPath,
+        overridesPath: paths.overridesPath,
+      }),
+    ).toEqual({ applied: 0, skipped: 1, collisions: 0 });
+
+    expect(await readOverrides(paths.overridesPath)).toEqual([]);
+  });
+
+  it('не пишет исключение при коллизии', async () => {
+    const paths = await setup();
+    const batch = await emit(paths);
+    const first = paths.questions[0];
+    const outputPath = await writeOutput(paths, batch!.batchId, [{ id: first.id, topic: 'html' }]);
+
+    const occupied = parsedQuestion(first.question, 'Другая секция', {
+      topic: 'html',
+      answer: 'Чужой ответ.',
+    });
+    const store = await readJsonFile<Array<Record<string, unknown>>>(paths.questionsPath);
+    store.push(occupied);
+    await writeFile(paths.questionsPath, JSON.stringify(store), 'utf8');
+
+    expect(
+      await mergeTopicfixBatch(outputPath, {
+        questionsPath: paths.questionsPath,
+        overridesPath: paths.overridesPath,
+      }),
+    ).toEqual({ applied: 0, skipped: 0, collisions: 1 });
+
+    expect(await readOverrides(paths.overridesPath)).toEqual([]);
   });
 });

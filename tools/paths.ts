@@ -12,4 +12,5 @@ export const paths = {
   batches: path.join(root, 'data/batches'),
   bank: path.join(root, 'data/bank'),
   docMap: path.join(root, 'content/doc-map'),
+  topicOverrides: path.join(root, 'content/topic-overrides.json'),
 } as const;

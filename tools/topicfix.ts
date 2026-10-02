@@ -1,16 +1,19 @@
 import { readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
-import { makeId, normalizeQuestionText } from './ids';
+import { makeId } from './ids';
 import { idsInBatches, readJson, uniqueBatchId, writeJson } from './io';
 import { paths } from './paths';
 import { isKnownTopic } from './taxonomy';
+import { contentKey, loadTopicOverrides, overrideKey, saveTopicOverrides } from './topic-overrides';
+import type { TopicOverride } from './topic-overrides';
 import { parsedQuestionSchema } from './types';
 
 export type TopicfixOptions = {
   hint?: string;
   size?: number;
   questionsPath?: string;
+  overridesPath?: string;
   batchesDir?: string;
   now?: Date;
 };
@@ -29,17 +32,6 @@ const topicfixOutputSchema = z.object({
 
 async function readStore(filePath: string): Promise<unknown[]> {
   return (await readJson<unknown[]>(filePath)) ?? [];
-}
-
-function contentKey(record: { source?: unknown; sourceUrl?: unknown; question?: unknown }): string | null {
-  if (
-    typeof record.source !== 'string' ||
-    typeof record.sourceUrl !== 'string' ||
-    typeof record.question !== 'string'
-  ) {
-    return null;
-  }
-  return `${record.source}|${record.sourceUrl}|${normalizeQuestionText(record.question)}`;
 }
 
 // Контент вопросов, уже встречавшихся в topicfix-батчах: id после merge меняется,
@@ -154,6 +146,7 @@ export async function mergeTopicfixBatch(
   let applied = 0;
   let skipped = 0;
   let collisions = 0;
+  const appliedRecords: TopicOverride[] = [];
 
   for (const assignment of output.assignments) {
     const index = indexById.get(assignment.id);
@@ -185,8 +178,31 @@ export async function mergeTopicfixBatch(
     indexById.delete(assignment.id);
     indexById.set(newId, index);
     applied += 1;
+    appliedRecords.push({
+      source: parsed.data.source,
+      sourceUrl: parsed.data.sourceUrl,
+      question: parsed.data.question,
+      topic: assignment.topic,
+    });
   }
 
   await writeJson(questionsPath, store);
+
+  // Фиксируем применённые переносы, чтобы seed и повторный parse не вернули старую тему.
+  const overridesPath = opts.overridesPath ?? paths.topicOverrides;
+  const overrides = await loadTopicOverrides(overridesPath);
+  const byKey = new Map(overrides.map((override) => [overrideKey(override), override]));
+  for (const record of appliedRecords) {
+    const key = contentKey(record);
+    if (!key) continue;
+    byKey.set(key, {
+      source: record.source,
+      sourceUrl: record.sourceUrl,
+      question: record.question,
+      topic: record.topic,
+    });
+  }
+  await saveTopicOverrides([...byKey.values()], overridesPath);
+
   return { applied, skipped, collisions };
 }
