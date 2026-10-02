@@ -280,20 +280,6 @@
     "grade": "middle"
   },
   {
-    "id": "mdn-js-reference-functions-arguments-length",
-    "topic": "javascript",
-    "title": "arguments.length",
-    "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Functions/arguments/length",
-    "grade": "middle"
-  },
-  {
-    "id": "mdn-js-reference-functions-arguments-symbol-iterator",
-    "topic": "javascript",
-    "title": "arguments[Symbol.iterator]()",
-    "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Functions/arguments/Symbol.iterator",
-    "grade": "middle"
-  },
-  {
     "id": "mdn-js-reference-functions-arrow-functions",
     "topic": "javascript",
     "title": "Arrow function expressions",
@@ -333,6 +319,13 @@
     "topic": "javascript",
     "title": "set",
     "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Functions/set",
+    "grade": "middle"
+  },
+  {
+    "id": "mdn-js-reference-global-objects-abstractmodulesource",
+    "topic": "javascript",
+    "title": "AbstractModuleSource",
+    "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/AbstractModuleSource",
     "grade": "middle"
   },
   {
@@ -588,6 +581,76 @@
     "grade": "middle"
   },
   {
+    "id": "mdn-js-reference-global-objects-intl-collator",
+    "topic": "javascript",
+    "title": "Intl.Collator",
+    "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/Collator",
+    "grade": "middle"
+  },
+  {
+    "id": "mdn-js-reference-global-objects-intl-datetimeformat",
+    "topic": "javascript",
+    "title": "Intl.DateTimeFormat",
+    "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/DateTimeFormat",
+    "grade": "middle"
+  },
+  {
+    "id": "mdn-js-reference-global-objects-intl-displaynames",
+    "topic": "javascript",
+    "title": "Intl.DisplayNames",
+    "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/DisplayNames",
+    "grade": "middle"
+  },
+  {
+    "id": "mdn-js-reference-global-objects-intl-durationformat",
+    "topic": "javascript",
+    "title": "Intl.DurationFormat",
+    "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/DurationFormat",
+    "grade": "middle"
+  },
+  {
+    "id": "mdn-js-reference-global-objects-intl-listformat",
+    "topic": "javascript",
+    "title": "Intl.ListFormat",
+    "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/ListFormat",
+    "grade": "middle"
+  },
+  {
+    "id": "mdn-js-reference-global-objects-intl-locale",
+    "topic": "javascript",
+    "title": "Intl.Locale",
+    "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/Locale",
+    "grade": "middle"
+  },
+  {
+    "id": "mdn-js-reference-global-objects-intl-numberformat",
+    "topic": "javascript",
+    "title": "Intl.NumberFormat",
+    "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/NumberFormat",
+    "grade": "middle"
+  },
+  {
+    "id": "mdn-js-reference-global-objects-intl-pluralrules",
+    "topic": "javascript",
+    "title": "Intl.PluralRules",
+    "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/PluralRules",
+    "grade": "middle"
+  },
+  {
+    "id": "mdn-js-reference-global-objects-intl-relativetimeformat",
+    "topic": "javascript",
+    "title": "Intl.RelativeTimeFormat",
+    "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/RelativeTimeFormat",
+    "grade": "middle"
+  },
+  {
+    "id": "mdn-js-reference-global-objects-intl-segmenter",
+    "topic": "javascript",
+    "title": "Intl.Segmenter",
+    "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/Segmenter",
+    "grade": "middle"
+  },
+  {
     "id": "mdn-js-reference-global-objects-isfinite",
     "topic": "javascript",
     "title": "isFinite()",
@@ -648,7 +711,7 @@
     "topic": "javascript",
     "title": "Object",
     "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object",
-    "grade": "middle"
+    "grade": "junior"
   },
   {
     "id": "mdn-js-reference-global-objects-parsefloat",
@@ -1078,13 +1141,6 @@
     "grade": "middle"
   },
   {
-    "id": "mdn-js-reference-operators-import-meta-resolve",
-    "topic": "javascript",
-    "title": "import.meta.resolve()",
-    "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/import.meta/resolve",
-    "grade": "middle"
-  },
-  {
     "id": "mdn-js-reference-operators-import-source",
     "topic": "javascript",
     "title": "import.source()",
@@ -1395,7 +1451,7 @@
   {
     "id": "mdn-js-reference-regular-expressions-backreference",
     "topic": "javascript",
-    "title": "Backreference: \\\\1, \\\\2",
+    "title": "Backreference: \\1, \\2",
     "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Regular_expressions/Backreference",
     "grade": "middle"
   },
@@ -1416,14 +1472,14 @@
   {
     "id": "mdn-js-reference-regular-expressions-character-class-escape",
     "topic": "javascript",
-    "title": "Character class escape: \\\\d, \\\\D, \\\\w, \\\\W, \\\\s, \\\\S",
+    "title": "Character class escape: \\d, \\D, \\w, \\W, \\s, \\S",
     "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Regular_expressions/Character_class_escape",
     "grade": "middle"
   },
   {
     "id": "mdn-js-reference-regular-expressions-character-escape",
     "topic": "javascript",
-    "title": "Character escape: \\\\n, \\\\u{...}",
+    "title": "Character escape: \\n, \\u{...}",
     "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Regular_expressions/Character_escape",
     "grade": "middle"
   },
@@ -1472,7 +1528,7 @@
   {
     "id": "mdn-js-reference-regular-expressions-named-backreference",
     "topic": "javascript",
-    "title": "Named backreference: \\\\k<name>",
+    "title": "Named backreference: \\k<name>",
     "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Regular_expressions/Named_backreference",
     "grade": "middle"
   },
@@ -1500,7 +1556,7 @@
   {
     "id": "mdn-js-reference-regular-expressions-unicode-character-class-escape",
     "topic": "javascript",
-    "title": "Unicode character class escape: \\\\p{...}, \\\\P{...}",
+    "title": "Unicode character class escape: \\p{...}, \\P{...}",
     "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Regular_expressions/Unicode_character_class_escape",
     "grade": "middle"
   },
@@ -1514,7 +1570,7 @@
   {
     "id": "mdn-js-reference-regular-expressions-word-boundary-assertion",
     "topic": "javascript",
-    "title": "Word boundary assertion: \\\\b, \\\\B",
+    "title": "Word boundary assertion: \\b, \\B",
     "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Regular_expressions/Word_boundary_assertion",
     "grade": "middle"
   },
@@ -1677,13 +1733,6 @@
     "topic": "javascript",
     "title": "import source",
     "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/import/source",
-    "grade": "middle"
-  },
-  {
-    "id": "mdn-js-reference-statements-import-with",
-    "topic": "javascript",
-    "title": "Import attributes",
-    "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/import/with",
     "grade": "middle"
   },
   {

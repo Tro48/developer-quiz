@@ -52,6 +52,8 @@ describe('loadDocMaps', () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'dq-docmap-'));
     await writeFile(path.join(dir, 'a.json'), JSON.stringify(valid), 'utf8');
     await writeFile(path.join(dir, 'b.json'), JSON.stringify([{ ...valid[0] }]), 'utf8');
-    await expect(loadDocMaps(dir)).rejects.toThrow(/дубликат id/);
+    await expect(loadDocMaps(dir)).rejects.toThrow(
+      /id mdn-js-guide-introduction уже определён в .*a\.json/,
+    );
   });
 });

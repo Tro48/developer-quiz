@@ -16,18 +16,14 @@ export type DocSection = z.infer<typeof docSectionSchema>;
 
 export const docMapSchema = z.array(docSectionSchema);
 
-export function validateDocMap(sections: unknown): string[] {
-  const issues: string[] = [];
-  const parsed = docMapSchema.safeParse(sections);
-  if (!parsed.success) {
-    for (const issue of parsed.error.issues) {
-      issues.push(`схема: ${issue.path.join('.')} — ${issue.message}`);
-    }
-    return issues;
-  }
+function schemaIssues(error: z.ZodError): string[] {
+  return error.issues.map((issue) => `схема: ${issue.path.join('.')} — ${issue.message}`);
+}
 
+function sectionIssues(sections: DocSection[]): string[] {
+  const issues: string[] = [];
   const ids = new Set<string>();
-  for (const section of parsed.data) {
+  for (const section of sections) {
     if (ids.has(section.id)) issues.push(`дубликат id: ${section.id}`);
     ids.add(section.id);
     if (!isCoreTopic(section.topic)) issues.push(`тема не в ядре: ${section.topic} (${section.id})`);
@@ -38,10 +34,16 @@ export function validateDocMap(sections: unknown): string[] {
   return issues;
 }
 
+export function validateDocMap(sections: unknown): string[] {
+  const parsed = docMapSchema.safeParse(sections);
+  if (!parsed.success) return schemaIssues(parsed.error);
+  return sectionIssues(parsed.data);
+}
+
 export async function loadDocMaps(dir: string = paths.docMap): Promise<DocSection[]> {
   const files = (await readdir(dir)).filter((file) => file.endsWith('.json')).sort();
   const sections: DocSection[] = [];
-  const ids = new Set<string>();
+  const idSource = new Map<string, string>();
 
   for (const file of files) {
     const filePath = path.join(dir, file);
@@ -53,16 +55,20 @@ export async function loadDocMaps(dir: string = paths.docMap): Promise<DocSectio
       throw new Error(`Карта ${filePath} не читается: ${message}`);
     }
 
-    const issues = validateDocMap(raw);
+    const parsed = docMapSchema.safeParse(raw);
+    if (!parsed.success) {
+      throw new Error(`Карта ${filePath} невалидна:\n${schemaIssues(parsed.error).join('\n')}`);
+    }
+
+    const issues = sectionIssues(parsed.data);
     if (issues.length > 0) throw new Error(`Карта ${filePath} невалидна:\n${issues.join('\n')}`);
 
-    for (const section of docMapSchema.parse(raw)) {
-      if (ids.has(section.id)) {
-        throw new Error(
-          `Карта ${filePath} невалидна: дубликат id ${section.id} встречается в нескольких файлах карт`,
-        );
+    for (const section of parsed.data) {
+      const previous = idSource.get(section.id);
+      if (previous !== undefined) {
+        throw new Error(`Карта ${filePath} невалидна: id ${section.id} уже определён в ${previous}`);
       }
-      ids.add(section.id);
+      idSource.set(section.id, filePath);
       sections.push(section);
     }
   }
