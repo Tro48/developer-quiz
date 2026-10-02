@@ -11,4 +11,5 @@ export const paths = {
   generated: path.join(root, 'data/generated'),
   batches: path.join(root, 'data/batches'),
   bank: path.join(root, 'data/bank'),
+  docMap: path.join(root, 'content/doc-map'),
 } as const;
