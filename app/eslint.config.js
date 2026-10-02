@@ -16,4 +16,11 @@ module.exports = defineConfig([
       'max-lines': ['error', { max: 200, skipBlankLines: true, skipComments: true }],
     },
   },
+  {
+    files: ['**/*.test.*', 'src/test-utils/**'],
+    rules: {
+      'max-lines': 'off',
+      'max-lines-per-function': 'off',
+    },
+  },
 ]);
