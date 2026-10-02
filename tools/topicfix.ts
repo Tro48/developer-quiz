@@ -1,6 +1,7 @@
+import { readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
-import { makeId } from './ids';
+import { makeId, normalizeQuestionText } from './ids';
 import { idsInBatches, readJson, uniqueBatchId, writeJson } from './io';
 import { paths } from './paths';
 import { isKnownTopic } from './taxonomy';
@@ -30,6 +31,41 @@ async function readStore(filePath: string): Promise<unknown[]> {
   return (await readJson<unknown[]>(filePath)) ?? [];
 }
 
+function contentKey(record: { source?: unknown; sourceUrl?: unknown; question?: unknown }): string | null {
+  if (
+    typeof record.source !== 'string' ||
+    typeof record.sourceUrl !== 'string' ||
+    typeof record.question !== 'string'
+  ) {
+    return null;
+  }
+  return `${record.source}|${record.sourceUrl}|${normalizeQuestionText(record.question)}`;
+}
+
+// Контент вопросов, уже встречавшихся в topicfix-батчах: id после merge меняется,
+// поэтому повторную выдачу исключаем по источнику и тексту.
+async function contentKeysInBatches(batchesDir: string): Promise<Set<string>> {
+  const dir = path.join(batchesDir, 'topicfix');
+  let files: string[] = [];
+  try {
+    files = await readdir(dir);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return new Set();
+    throw error;
+  }
+
+  const keys = new Set<string>();
+  for (const file of files) {
+    if (!file.endsWith('.input.json') && !file.endsWith('.output.json')) continue;
+    const content = await readJson<{ questions?: unknown[] }>(path.join(dir, file));
+    for (const question of content?.questions ?? []) {
+      const key = contentKey(question as { source?: unknown; sourceUrl?: unknown; question?: unknown });
+      if (key) keys.add(key);
+    }
+  }
+  return keys;
+}
+
 // Выбирает parsed-вопросы смешанной секции, ещё не встречавшиеся в topicfix-батчах.
 export async function emitTopicfixBatch(
   opts: TopicfixOptions = {},
@@ -40,14 +76,24 @@ export async function emitTopicfixBatch(
   const size = opts.size ?? 30;
   const store = await readStore(questionsPath);
   const used = await idsInBatches('topicfix', batchesDir);
+  const usedContent = await contentKeysInBatches(batchesDir);
   const selected = store
     .filter((record) => {
-      const item = record as { id?: unknown; status?: unknown; topicHint?: unknown };
+      const item = record as {
+        id?: unknown;
+        status?: unknown;
+        topicHint?: unknown;
+        source?: unknown;
+        sourceUrl?: unknown;
+        question?: unknown;
+      };
+      const key = contentKey(item);
       return (
         item.status === 'parsed' &&
         item.topicHint === hint &&
         typeof item.id === 'string' &&
-        !used.has(item.id)
+        !used.has(item.id) &&
+        (!key || !usedContent.has(key))
       );
     })
     .slice(0, size);
@@ -122,12 +168,20 @@ export async function mergeTopicfixBatch(
     }
 
     const newId = makeId(assignment.topic, parsed.data.question);
-    if (newId !== assignment.id && indexById.has(newId)) {
+    if (newId === assignment.id) {
+      skipped += 1;
+      continue;
+    }
+    if (indexById.has(newId)) {
       collisions += 1;
       continue;
     }
 
-    store[index] = { ...parsed.data, id: newId, topic: assignment.topic };
+    store[index] = {
+      ...(store[index] as Record<string, unknown>),
+      id: newId,
+      topic: assignment.topic,
+    };
     indexById.delete(assignment.id);
     indexById.set(newId, index);
     applied += 1;

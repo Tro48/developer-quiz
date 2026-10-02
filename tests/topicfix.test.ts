@@ -127,7 +127,7 @@ describe('эмиссия topicfix-батчей', () => {
 });
 
 describe('merge topicfix-батчей', () => {
-  it('переносит записи на html/css, сохраняя статус и содержимое', async () => {
+  it('переносит запись на html и пропускает no-op, сохраняя статус и содержимое', async () => {
     const paths = await setup();
     const batch = await emit(paths);
     const [first, second] = paths.questions;
@@ -137,8 +137,8 @@ describe('merge topicfix-батчей', () => {
     ]);
 
     expect(await mergeTopicfixBatch(outputPath, { questionsPath: paths.questionsPath })).toEqual({
-      applied: 2,
-      skipped: 0,
+      applied: 1,
+      skipped: 1,
       collisions: 0,
     });
 
@@ -188,6 +188,45 @@ describe('merge topicfix-батчей', () => {
     expect(store).toHaveLength(4);
   });
 
+  it('не выдаёт повторно вопросы, прошедшие merge', async () => {
+    const paths = await setup();
+    const batch = await emit(paths);
+    const [first, second] = paths.questions;
+    const outputPath = await writeOutput(paths, batch!.batchId, [
+      { id: first.id, topic: 'html' },
+      { id: second.id, topic: 'css' },
+    ]);
+
+    expect(await mergeTopicfixBatch(outputPath, { questionsPath: paths.questionsPath })).toEqual({
+      applied: 1,
+      skipped: 1,
+      collisions: 0,
+    });
+
+    expect(await emit(paths)).toBeNull();
+  });
+
+  it('сохраняет поля вне схемы при переносе', async () => {
+    const paths = await setup();
+    const batch = await emit(paths);
+    const first = paths.questions[0];
+
+    const store = await readJsonFile<Array<Record<string, unknown>>>(paths.questionsPath);
+    store[0] = { ...store[0], note: 'пометка редактора' };
+    await writeFile(paths.questionsPath, JSON.stringify(store), 'utf8');
+
+    const outputPath = await writeOutput(paths, batch!.batchId, [{ id: first.id, topic: 'html' }]);
+    expect(await mergeTopicfixBatch(outputPath, { questionsPath: paths.questionsPath })).toEqual({
+      applied: 1,
+      skipped: 0,
+      collisions: 0,
+    });
+
+    const after = await readJsonFile<Array<Record<string, unknown>>>(paths.questionsPath);
+    const moved = after.find((record) => record.id === makeId('html', first.question))!;
+    expect(moved.note).toBe('пометка редактора');
+  });
+
   it('считает коллизию и не затирает занятую запись', async () => {
     const paths = await setup();
     const batch = await emit(paths);
@@ -206,8 +245,8 @@ describe('merge topicfix-батчей', () => {
     await writeFile(paths.questionsPath, JSON.stringify(store), 'utf8');
 
     expect(await mergeTopicfixBatch(outputPath, { questionsPath: paths.questionsPath })).toEqual({
-      applied: 1,
-      skipped: 0,
+      applied: 0,
+      skipped: 1,
       collisions: 1,
     });
 

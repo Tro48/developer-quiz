@@ -57,7 +57,8 @@ const commands: Record<string, () => Promise<void>> = {
     }
   },
   'topics-next': async () => {
-    const result = await emitTopicfixBatch({ size });
+    const sizeArg = argValue(args, '--size');
+    const result = await emitTopicfixBatch(sizeArg === undefined ? {} : { size: Number(sizeArg) });
     console.log(result ? `Батч создан: ${result.inputPath}` : 'Нет вопросов для назначения тем');
   },
   'topics-merge': async () => {
