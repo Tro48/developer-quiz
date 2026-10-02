@@ -12,6 +12,9 @@
     "generate:merge": "tsx tools/batch-cli.ts generate-merge",
     "verify:next": "tsx tools/batch-cli.ts verify-next",
     "verify:merge": "tsx tools/batch-cli.ts verify-merge",
+    "docgen:next": "tsx tools/batch-cli.ts docgen-next",
+    "docgen:merge": "tsx tools/batch-cli.ts docgen-merge",
+    "docgen:status": "tsx tools/batch-cli.ts docgen-status",
     "validate": "tsx tools/validate.ts",
     "build": "tsx tools/build.ts",
     "report": "tsx tools/report.ts"

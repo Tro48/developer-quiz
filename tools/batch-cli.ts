@@ -4,6 +4,7 @@ import {
   mergeGenerationBatch,
   mergeVerificationBatch,
 } from './batch';
+import { docgenStatus, emitDocgenBatch, mergeDocgenBatch } from './docgen';
 
 function argValue(args: string[], name: string): string | undefined {
   const index = args.indexOf(name);
@@ -34,6 +35,25 @@ const commands: Record<string, () => Promise<void>> = {
     if (!file) throw new Error('Укажи путь к output-файлу батча');
     const result = await mergeVerificationBatch(file);
     console.log(`Подтверждено: ${result.verified}, отклонено: ${result.rejected}`);
+  },
+  'docgen-next': async () => {
+    const topic = argValue(args, '--topic');
+    const grade = argValue(args, '--grade') as 'junior' | 'middle' | 'senior' | undefined;
+    const result = await emitDocgenBatch({ size, topic, grade });
+    console.log(result ? `Батч создан: ${result.inputPath}` : 'Нет разделов для генерации');
+  },
+  'docgen-merge': async () => {
+    const file = args[0];
+    if (!file) throw new Error('Укажи путь к output-файлу батча');
+    const result = await mergeDocgenBatch(file);
+    console.log(`Добавлено вопросов: ${result.added}, пропущено: ${result.skipped}`);
+  },
+  'docgen-status': async () => {
+    const topic = argValue(args, '--topic');
+    for (const row of await docgenStatus({})) {
+      if (topic && row.topic !== topic) continue;
+      console.log(`${row.topic}: покрыто ${row.covered}/${row.total}, verified ${row.verified}`);
+    }
   },
 };
 
