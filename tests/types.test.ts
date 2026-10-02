@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { generatedQuestionSchema, parsedQuestionSchema } from '../tools/types';
+import { bankQuestionSchema, generatedQuestionSchema, parsedQuestionSchema } from '../tools/types';
 
 const base = {
   id: 'javascript-deadbeef',
@@ -55,5 +55,44 @@ describe('generatedQuestionSchema', () => {
       status: 'generated',
     });
     expect(noRefs.success).toBe(false);
+  });
+});
+
+describe('bankQuestionSchema', () => {
+  it('принимает только verified и убирает rejectReason', () => {
+    const question = {
+      ...base,
+      grade: 'junior',
+      options: ['А', 'Б', 'В', 'Г'],
+      correctIndex: 0,
+      explanation: 'Пояснение.',
+      docsRefs: ['https://developer.mozilla.org/ru/docs/Web/JavaScript/Closures'],
+      status: 'verified',
+      rejectReason: 'мусор',
+    };
+
+    const parsed = bankQuestionSchema.parse(question);
+    expect(parsed.status).toBe('verified');
+    expect('rejectReason' in parsed).toBe(false);
+    expect(bankQuestionSchema.safeParse({ ...question, status: 'generated' }).success).toBe(false);
+  });
+});
+
+describe('generatedQuestionSchema: строгие требования', () => {
+  const valid = {
+    ...base,
+    grade: 'junior',
+    options: ['А', 'Б', 'В', 'Г'],
+    correctIndex: 0,
+    explanation: 'Пояснение.',
+    docsRefs: ['https://developer.mozilla.org/ru/docs/Web/JavaScript/Closures'],
+    status: 'generated',
+  };
+
+  it('отклоняет status parsed, correctIndex вне 0..3 и пустые строки', () => {
+    expect(generatedQuestionSchema.safeParse({ ...valid, status: 'parsed' }).success).toBe(false);
+    expect(generatedQuestionSchema.safeParse({ ...valid, correctIndex: 4 }).success).toBe(false);
+    expect(generatedQuestionSchema.safeParse({ ...valid, options: ['', 'Б', 'В', 'Г'] }).success).toBe(false);
+    expect(generatedQuestionSchema.safeParse({ ...valid, explanation: '' }).success).toBe(false);
   });
 });

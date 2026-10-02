@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 // Нужна и для стабильных id, и для дедупликации.
 export function normalizeQuestionText(text: string): string {
   return text
-    .replace(/[«»""'']/g, '"')
+    .replace(/[«»“”„‘’"']/g, '"')
     .replace(/\s+/g, ' ')
     .trim()
     .toLowerCase();
