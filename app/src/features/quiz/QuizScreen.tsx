@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
 import { AppText, Button, ProgressBar, Screen } from '@/components/ui';
@@ -33,13 +33,10 @@ export function QuizScreen() {
 
   useEffect(() => {
     if (state.phase === 'finished') {
-      // Экран /result появится в задаче 10 — до этого typed routes не знает маршрут,
-      // поэтому каст временный; после его появления каст снимается.
-      const resultHref = {
+      router.replace({
         pathname: '/result',
         params: { correct: state.correctCount, total: state.questions.length, grade },
-      } as unknown as Href;
-      router.replace(resultHref);
+      });
     }
   }, [state.phase, state.correctCount, state.questions.length, grade, router]);
 
