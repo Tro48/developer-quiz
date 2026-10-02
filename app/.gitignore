@@ -39,3 +39,6 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# copied question bank (npm run db:copy)
+assets/db/

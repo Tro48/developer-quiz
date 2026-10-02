@@ -33,6 +33,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "db:copy": "node scripts/copy-questions-db.mjs",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "test": "jest"

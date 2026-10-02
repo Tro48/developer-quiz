@@ -44,6 +44,10 @@ export const darkTheme: Theme = {
   ...scales,
 };
 
+export function isThemeName(value: string): value is ThemeName {
+  return value === 'dark' || value === 'light';
+}
+
 const themes: Partial<Record<ThemeName, Theme>> = { dark: darkTheme };
 
 export function resolveTheme(name: ThemeName): Theme {
