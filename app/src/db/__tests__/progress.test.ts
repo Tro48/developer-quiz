@@ -30,4 +30,14 @@ describe('progress', () => {
       { topic: 'javascript', grade: 'junior', solved: 1 },
     ]);
   });
+
+  it('не трогает прогресс при пустом списке валидных id', async () => {
+    const db = createTestDb();
+    await migrateUserDb(db);
+    await markSolved(db, { id: 'js-1', topic: 'javascript', grade: 'junior' });
+
+    await pruneSolved(db, []);
+
+    await expect(getSolvedIds(db)).resolves.toEqual(['js-1']);
+  });
 });

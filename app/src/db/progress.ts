@@ -29,6 +29,10 @@ export async function markSolved(
 }
 
 export async function pruneSolved(db: SQLiteDatabase, validIds: string[]): Promise<void> {
+  if (validIds.length === 0) {
+    return;
+  }
+
   const valid = new Set(validIds);
   const rows = await db.getAllAsync<{ question_id: string }>(
     'SELECT question_id FROM solved_questions'
