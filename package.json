@@ -1,0 +1,29 @@
+{
+  "name": "developer-quiz-tools",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "vitest run",
+    "fetch": "tsx tools/fetch-sources.ts",
+    "parse": "tsx tools/parse/index.ts",
+    "generate:next": "tsx tools/batch-cli.ts generate-next",
+    "generate:merge": "tsx tools/batch-cli.ts generate-merge",
+    "verify:next": "tsx tools/batch-cli.ts verify-next",
+    "verify:merge": "tsx tools/batch-cli.ts verify-merge",
+    "validate": "tsx tools/validate.ts",
+    "build": "tsx tools/build.ts",
+    "report": "tsx tools/report.ts"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.3.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/node": "^22.7.4",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.2",
+    "vitest": "^2.1.2"
+  }
+}
