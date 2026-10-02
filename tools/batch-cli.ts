@@ -6,6 +6,9 @@ import {
 } from './batch';
 import { docgenStatus, emitDocgenBatch, mergeDocgenBatch } from './docgen';
 import { emitTopicfixBatch, mergeTopicfixBatch } from './topicfix';
+import { GRADES } from './types';
+
+type Grade = (typeof GRADES)[number];
 
 function argValue(args: string[], name: string): string | undefined {
   const index = args.indexOf(name);
@@ -13,13 +16,24 @@ function argValue(args: string[], name: string): string | undefined {
 }
 
 function sizeArg(args: string[], fallback = 10): number {
-  const raw = argValue(args, '--size');
-  if (raw === undefined) return fallback;
-  const value = Number(raw);
+  const index = args.indexOf('--size');
+  if (index === -1) return fallback;
+  const value = Number(args[index + 1]);
   if (!Number.isInteger(value) || value <= 0) {
     throw new Error('--size должен быть положительным целым числом');
   }
   return value;
+}
+
+function gradeArg(args: string[]): Grade | undefined {
+  const index = args.indexOf('--grade');
+  if (index === -1) return undefined;
+  const raw = args[index + 1];
+  const grade = GRADES.find((candidate) => candidate === raw);
+  if (!grade) {
+    throw new Error('--grade должен быть одним из: junior, middle, senior');
+  }
+  return grade;
 }
 
 const args = process.argv.slice(2);
@@ -48,8 +62,7 @@ const commands: Record<string, () => Promise<void>> = {
   },
   'docgen-next': async () => {
     const topic = argValue(args, '--topic');
-    const grade = argValue(args, '--grade') as 'junior' | 'middle' | 'senior' | undefined;
-    const result = await emitDocgenBatch({ size: sizeArg(args), topic, grade });
+    const result = await emitDocgenBatch({ size: sizeArg(args), topic, grade: gradeArg(args) });
     console.log(result ? `Батч создан: ${result.inputPath}` : 'Нет разделов для генерации');
   },
   'docgen-merge': async () => {
@@ -63,7 +76,7 @@ const commands: Record<string, () => Promise<void>> = {
     for (const row of await docgenStatus({})) {
       if (topic && row.topic !== topic) continue;
       console.log(
-        `${row.topic}: покрыто ${row.covered}/${row.total}, verified ${row.verified}, rejected ${row.rejected}`,
+        `${row.topic}: покрыто ${row.covered}/${row.total}, verified ${row.verified}, отказов ${row.rejected}`,
       );
     }
   },

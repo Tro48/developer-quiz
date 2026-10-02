@@ -2,7 +2,7 @@ import { readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
 import { docMapSchema, loadDocMaps, type DocSection } from './docmap';
-import { makeId, normalizeQuestionText } from './ids';
+import { makeId } from './ids';
 import { readJson, uniqueBatchId, writeJson } from './io';
 import { paths } from './paths';
 import { isCoreTopic } from './taxonomy';
@@ -55,6 +55,31 @@ function statusesBySection(store: unknown[]): Map<string, Set<string>> {
   return statuses;
 }
 
+// Разделы, которые агент уже помечал skipped в выходах батчей: после этого
+// повторную выдачу rejected-раздела не начинаем.
+async function skippedSections(batchesDir: string): Promise<Set<string>> {
+  const dir = path.join(batchesDir, 'docgen');
+  let files: string[] = [];
+  try {
+    files = await readdir(dir);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return new Set();
+    throw error;
+  }
+
+  const sections = new Set<string>();
+  for (const file of files) {
+    if (!file.endsWith('.output.json')) continue;
+    const content = await readJson<{ skipped?: Array<{ sectionId?: unknown }> }>(
+      path.join(dir, file),
+    );
+    for (const skip of content?.skipped ?? []) {
+      if (typeof skip.sectionId === 'string') sections.add(skip.sectionId);
+    }
+  }
+  return sections;
+}
+
 async function sectionsInBatches(batchesDir: string): Promise<Set<string>> {
   const dir = path.join(batchesDir, 'docgen');
   let files: string[] = [];
@@ -95,6 +120,7 @@ export async function emitDocgenBatch(
   const questionsPath = opts.questionsPath ?? path.join(paths.generated, 'questions.json');
   const sections: DocSection[] = await loadDocMaps(opts.docMapDir);
   const used = await sectionsInBatches(batchesDir);
+  const skippedEver = await skippedSections(batchesDir);
 
   const active = new Set<string>();
   const rejected = new Set<string>();
@@ -108,7 +134,8 @@ export async function emitDocgenBatch(
     .filter((section) => (opts.grade ? section.grade === opts.grade : true))
     .filter(
       (section) =>
-        !active.has(section.id) && (!used.has(section.id) || rejected.has(section.id)),
+        !active.has(section.id) &&
+        (!used.has(section.id) || (rejected.has(section.id) && !skippedEver.has(section.id))),
     )
     .slice(0, size);
 
@@ -211,7 +238,12 @@ export async function mergeDocgenBatch(
     }
 
     const id = makeId(result.topic, result.question);
-    const key = `docgen|${section.url}|${normalizeQuestionText(result.question)}`;
+    // Поля гарантированно строки по схеме выхода, поэтому ключ не null.
+    const key = contentKey({
+      source: 'docgen',
+      sourceUrl: section.url,
+      question: result.question,
+    })!;
     if (indexById.has(id) || contentKeys.has(key)) {
       skipped += 1;
       continue;

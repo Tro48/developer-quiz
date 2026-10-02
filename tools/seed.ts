@@ -1,8 +1,8 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { normalizeQuestionText } from './ids';
 import { paths } from './paths';
+import { contentKey } from './topic-overrides';
 import { parsedQuestionSchema } from './types';
 import { readQuestionsFile } from './validate';
 
@@ -25,19 +25,6 @@ type StoredQuestion = {
   source?: unknown;
   sourceUrl?: unknown;
 };
-
-// Ключ одного и того же вопроса из одного источника: id меняется при смене темы,
-// контент — нет.
-function contentKey(question: StoredQuestion): string | null {
-  if (
-    typeof question.source !== 'string' ||
-    typeof question.sourceUrl !== 'string' ||
-    typeof question.question !== 'string'
-  ) {
-    return null;
-  }
-  return `${question.source}|${question.sourceUrl}|${normalizeQuestionText(question.question)}`;
-}
 
 async function readStore(filePath: string): Promise<unknown[]> {
   try {

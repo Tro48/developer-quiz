@@ -172,6 +172,32 @@ describe('эмиссия docgen-батчей', () => {
     expect(input.sections.map((section) => section.id)).toEqual(['js-basics', 'js-memory']);
   });
 
+  it('не перевыдаёт rejected-раздел, если агент уже помечал его skipped', async () => {
+    const paths = await setup();
+    await mkdir(path.dirname(paths.questionsPath), { recursive: true });
+    await writeFile(
+      paths.questionsPath,
+      JSON.stringify([{ id: 'javascript-00000000', docSection: 'js-basics', status: 'rejected' }]),
+      'utf8',
+    );
+
+    const oldOutput = path.join(paths.batchesDir, 'docgen', 'docgen-20260101-000000.output.json');
+    await mkdir(path.dirname(oldOutput), { recursive: true });
+    await writeFile(
+      oldOutput,
+      JSON.stringify({
+        batchId: 'docgen-20260101-000000',
+        results: [],
+        skipped: [{ sectionId: 'js-basics', reason: 'повторно не подошёл' }],
+      }),
+      'utf8',
+    );
+
+    const batch = await emit(paths, { topic: 'javascript', size: 1 });
+    const input = await readJsonFile<{ sections: Array<{ id: string }> }>(batch!.inputPath);
+    expect(input.sections.map((section) => section.id)).toEqual(['js-functions']);
+  });
+
   it('не выдаёт раздел, у которого уже есть generated или verified', async () => {
     const paths = await setup();
     await mkdir(path.dirname(paths.questionsPath), { recursive: true });
