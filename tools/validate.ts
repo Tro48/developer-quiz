@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { paths } from './paths';
-import { bankQuestionSchema, generatedQuestionSchema } from './types';
+import { bankQuestionSchema } from './types';
 
 export type ValidationIssue = {
   id?: string;
@@ -41,28 +41,61 @@ export function validateBankQuestions(questions: unknown[]): ValidationIssue[] {
   return issues;
 }
 
-// В рабочей базе проверяем только записи со статусом verified.
+// В рабочей базе проверяем все записи с сырым статусом verified: невалидные
+// по схеме не должны молча выпадать из проверки.
 export function validateVerified(questions: unknown[]): ValidationIssue[] {
-  const verified: unknown[] = [];
-  for (const question of questions) {
-    const parsed = generatedQuestionSchema.safeParse(question);
-    if (parsed.success && parsed.data.status === 'verified') verified.push(parsed.data);
-  }
+  const verified = questions.filter(
+    (question) =>
+      typeof question === 'object' &&
+      question !== null &&
+      (question as { status?: unknown }).status === 'verified',
+  );
   return validateBankQuestions(verified);
 }
 
-async function readJsonArray(filePath: string): Promise<unknown[]> {
+// Чтение массива записей: ENOENT — это пустая база, остальные проблемы (права,
+// битый JSON, не массив) обязаны стать issue, чтобы гейт не зеленел ложно.
+export async function readQuestionsFile(
+  filePath: string,
+): Promise<{ questions: unknown[]; issues: ValidationIssue[] }> {
+  let raw: string;
   try {
-    return JSON.parse(await readFile(filePath, 'utf8')) as unknown[];
-  } catch {
-    return [];
+    raw = await readFile(filePath, 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return { questions: [], issues: [] };
+    }
+    return {
+      questions: [],
+      issues: [{ message: `не удалось прочитать ${filePath}: ${(error as Error).message}` }],
+    };
   }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    return {
+      questions: [],
+      issues: [{ message: `не удалось разобрать JSON ${filePath}: ${(error as Error).message}` }],
+    };
+  }
+
+  if (!Array.isArray(parsed)) {
+    return { questions: [], issues: [{ message: `${filePath}: ожидался массив записей` }] };
+  }
+  return { questions: parsed, issues: [] };
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const store = await readJsonArray(path.join(paths.generated, 'questions.json'));
-  const bank = await readJsonArray(path.join(paths.bank, 'questions.json'));
-  const issues = [...validateVerified(store), ...validateBankQuestions(bank)];
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const store = await readQuestionsFile(path.join(paths.generated, 'questions.json'));
+  const bank = await readQuestionsFile(path.join(paths.bank, 'questions.json'));
+  const issues = [
+    ...store.issues,
+    ...bank.issues,
+    ...validateVerified(store.questions),
+    ...validateBankQuestions(bank.questions),
+  ];
 
   if (issues.length > 0) {
     for (const issue of issues) {
