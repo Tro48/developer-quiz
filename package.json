@@ -15,6 +15,8 @@
     "docgen:next": "tsx tools/batch-cli.ts docgen-next",
     "docgen:merge": "tsx tools/batch-cli.ts docgen-merge",
     "docgen:status": "tsx tools/batch-cli.ts docgen-status",
+    "topics:next": "tsx tools/batch-cli.ts topics-next",
+    "topics:merge": "tsx tools/batch-cli.ts topics-merge",
     "validate": "tsx tools/validate.ts",
     "build": "tsx tools/build.ts",
     "report": "tsx tools/report.ts"

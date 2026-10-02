@@ -5,6 +5,7 @@ import {
   mergeVerificationBatch,
 } from './batch';
 import { docgenStatus, emitDocgenBatch, mergeDocgenBatch } from './docgen';
+import { emitTopicfixBatch, mergeTopicfixBatch } from './topicfix';
 
 function argValue(args: string[], name: string): string | undefined {
   const index = args.indexOf(name);
@@ -54,6 +55,18 @@ const commands: Record<string, () => Promise<void>> = {
       if (topic && row.topic !== topic) continue;
       console.log(`${row.topic}: покрыто ${row.covered}/${row.total}, verified ${row.verified}`);
     }
+  },
+  'topics-next': async () => {
+    const result = await emitTopicfixBatch({ size });
+    console.log(result ? `Батч создан: ${result.inputPath}` : 'Нет вопросов для назначения тем');
+  },
+  'topics-merge': async () => {
+    const file = args[0];
+    if (!file) throw new Error('Укажи путь к output-файлу батча');
+    const result = await mergeTopicfixBatch(file);
+    console.log(
+      `Назначено: ${result.applied}, пропущено: ${result.skipped}, коллизий: ${result.collisions}`,
+    );
   },
 };
 
