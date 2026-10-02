@@ -126,6 +126,7 @@ export async function mergeTopicfixBatch(
       .filter((id): id is string => typeof id === 'string'),
   );
 
+  const assignmentCounts = new Map<string, number>();
   for (const assignment of output.assignments) {
     if (!inputIds.has(assignment.id)) {
       throw new Error(`Назначение по id не из батча: ${assignment.id}`);
@@ -133,6 +134,19 @@ export async function mergeTopicfixBatch(
     if (!isKnownTopic(assignment.topic)) {
       throw new Error(`Неизвестная тема: ${assignment.topic}`);
     }
+    assignmentCounts.set(assignment.id, (assignmentCounts.get(assignment.id) ?? 0) + 1);
+  }
+
+  // Батч закрыт, только если каждый вопрос назначен ровно один раз.
+  const duplicates = [...assignmentCounts]
+    .filter(([, count]) => count > 1)
+    .map(([id]) => id);
+  if (duplicates.length > 0) {
+    throw new Error(`Вопросы назначены несколько раз: ${duplicates.join(', ')}`);
+  }
+  const missing = [...inputIds].filter((id) => !assignmentCounts.has(id));
+  if (missing.length > 0) {
+    throw new Error(`Батч неполный, нет назначения темы для вопросов: ${missing.join(', ')}`);
   }
 
   const questionsPath = opts.questionsPath ?? path.join(paths.generated, 'questions.json');

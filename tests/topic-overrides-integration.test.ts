@@ -67,11 +67,18 @@ describe('инвариант исключений тем', () => {
     expect(batch).not.toBeNull();
 
     const outputPath = path.join(ws.batchesDir, 'topicfix', `${batch!.batchId}.output.json`);
+    const inputPath = path.join(ws.batchesDir, 'topicfix', `${batch!.batchId}.input.json`);
+    const input = JSON.parse(await readFile(inputPath, 'utf8')) as {
+      questions: Array<{ id: string; topic: string }>;
+    };
     await writeFile(
       outputPath,
       JSON.stringify({
         batchId: batch!.batchId,
-        assignments: [{ id: before!.id, topic: 'javascript' }],
+        assignments: input.questions.map((question) => ({
+          id: question.id,
+          topic: question.id === String(before!.id) ? 'javascript' : question.topic,
+        })),
       }),
       'utf8',
     );
@@ -81,7 +88,7 @@ describe('инвариант исключений тем', () => {
         questionsPath: ws.questionsPath,
         overridesPath: ws.overridesPath,
       }),
-    ).toEqual({ applied: 1, skipped: 0, collisions: 0 });
+    ).toEqual({ applied: 1, skipped: input.questions.length - 1, collisions: 0 });
 
     // 3. Повторный parse с исключением оставляет вопрос в javascript.
     const reparsed = await parseAll({

@@ -11,8 +11,6 @@ import {
   type ParsedQuestion,
 } from './types';
 
-export { batchStamp } from './io';
-
 export type BatchOptions = {
   parsedPath?: string;
   questionsPath?: string;

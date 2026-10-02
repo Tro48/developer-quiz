@@ -145,6 +145,46 @@ describe('эмиссия docgen-батчей', () => {
 
     expect(input.sections.map((section) => section.id)).toEqual(['js-memory']);
   });
+
+  it('перевыдаёт раздел с rejected-записью, но не тратит skipped', async () => {
+    const paths = await setup();
+    await mkdir(path.dirname(paths.questionsPath), { recursive: true });
+    await writeFile(
+      paths.questionsPath,
+      JSON.stringify([{ id: 'javascript-00000000', docSection: 'js-basics', status: 'rejected' }]),
+      'utf8',
+    );
+
+    const oldInput = path.join(paths.batchesDir, 'docgen', 'docgen-20260101-000000.input.json');
+    await mkdir(path.dirname(oldInput), { recursive: true });
+    await writeFile(
+      oldInput,
+      JSON.stringify({
+        batchId: 'docgen-20260101-000000',
+        kind: 'docgen',
+        sections: [{ id: 'js-basics' }, { id: 'js-functions' }],
+      }),
+      'utf8',
+    );
+
+    const batch = await emit(paths, { topic: 'javascript', size: 2 });
+    const input = await readJsonFile<{ sections: Array<{ id: string }> }>(batch!.inputPath);
+    expect(input.sections.map((section) => section.id)).toEqual(['js-basics', 'js-memory']);
+  });
+
+  it('не выдаёт раздел, у которого уже есть generated или verified', async () => {
+    const paths = await setup();
+    await mkdir(path.dirname(paths.questionsPath), { recursive: true });
+    await writeFile(
+      paths.questionsPath,
+      JSON.stringify([{ id: 'javascript-00000000', docSection: 'js-basics', status: 'verified' }]),
+      'utf8',
+    );
+
+    const batch = await emit(paths, { topic: 'javascript', size: 3 });
+    const input = await readJsonFile<{ sections: Array<{ id: string }> }>(batch!.inputPath);
+    expect(input.sections.map((section) => section.id)).toEqual(['js-functions', 'js-memory']);
+  });
 });
 
 describe('merge docgen-батчей', () => {
@@ -154,7 +194,10 @@ describe('merge docgen-батчей', () => {
     const outputPath = await writeOutput(paths, batch!.batchId, {
       results: [
         docgenResult('js-basics', 'javascript', 'Вопрос про основы?'),
-        docgenResult('js-functions', 'javascript', 'Вопрос про функции?', { grade: 'middle' }),
+        docgenResult('js-functions', 'javascript', 'Вопрос про функции?', {
+          grade: 'middle',
+          docsRefs: [FUNCTIONS_URL],
+        }),
       ],
       skipped: [{ sectionId: 'js-memory', reason: 'слишком узкий раздел' }],
     });
@@ -186,7 +229,10 @@ describe('merge docgen-батчей', () => {
     const outputPath = await writeOutput(paths, batch!.batchId, {
       results: [
         docgenResult('js-basics', 'javascript', 'Вопрос 1?'),
-        docgenResult('js-functions', 'javascript', 'Вопрос 2?'),
+        docgenResult('js-functions', 'javascript', 'Вопрос 2?', {
+          grade: 'middle',
+          docsRefs: [FUNCTIONS_URL],
+        }),
       ],
     });
 
@@ -273,6 +319,72 @@ describe('merge docgen-батчей', () => {
     const store = await readJsonFile<unknown[]>(paths.questionsPath);
     expect(store).toHaveLength(1);
   });
+
+  it('падает, если выход покрывает не все разделы батча, и ничего не пишет', async () => {
+    const paths = await setup();
+    const batch = await emit(paths, { topic: 'javascript', size: 2 });
+    const outputPath = await writeOutput(paths, batch!.batchId, {
+      results: [docgenResult('js-basics', 'javascript', 'Вопрос?')],
+    });
+
+    await expect(
+      mergeDocgenBatch(outputPath, { questionsPath: paths.questionsPath }),
+    ).rejects.toThrow('Батч неполный, нет результата для разделов: js-functions');
+
+    await expect(readFile(paths.questionsPath, 'utf8')).rejects.toThrow();
+  });
+
+  it('падает, если раздел встречается в выходе несколько раз', async () => {
+    const paths = await setup();
+    const batch = await emit(paths, { topic: 'javascript', size: 2 });
+    const outputPath = await writeOutput(paths, batch!.batchId, {
+      results: [
+        docgenResult('js-basics', 'javascript', 'Вопрос 1?'),
+        docgenResult('js-basics', 'javascript', 'Вопрос 2?'),
+      ],
+      skipped: [{ sectionId: 'js-functions', reason: 'не подошёл' }],
+    });
+
+    await expect(
+      mergeDocgenBatch(outputPath, { questionsPath: paths.questionsPath }),
+    ).rejects.toThrow(/Раздел указан несколько раз: js-basics/);
+  });
+
+  it('падает на грейде результата ниже грейда раздела', async () => {
+    const paths = await setup();
+    const batch = await emit(paths, { topic: 'javascript', size: 2 });
+    const outputPath = await writeOutput(paths, batch!.batchId, {
+      results: [
+        docgenResult('js-functions', 'javascript', 'Вопрос про функции?', {
+          grade: 'junior',
+          docsRefs: [FUNCTIONS_URL],
+        }),
+      ],
+      skipped: [{ sectionId: 'js-basics', reason: 'не подошёл' }],
+    });
+
+    await expect(
+      mergeDocgenBatch(outputPath, { questionsPath: paths.questionsPath }),
+    ).rejects.toThrow(/ниже грейда раздела/);
+  });
+
+  it('падает, если docsRefs не содержит URL раздела', async () => {
+    const paths = await setup();
+    const batch = await emit(paths, { topic: 'javascript', size: 2 });
+    const outputPath = await writeOutput(paths, batch!.batchId, {
+      results: [
+        docgenResult('js-functions', 'javascript', 'Вопрос про функции?', {
+          grade: 'middle',
+          docsRefs: [BASIC_URL],
+        }),
+      ],
+      skipped: [{ sectionId: 'js-basics', reason: 'не подошёл' }],
+    });
+
+    await expect(
+      mergeDocgenBatch(outputPath, { questionsPath: paths.questionsPath }),
+    ).rejects.toThrow(/docsRefs/);
+  });
 });
 
 describe('docgenStatus', () => {
@@ -282,7 +394,10 @@ describe('docgenStatus', () => {
     const outputPath = await writeOutput(paths, batch!.batchId, {
       results: [
         docgenResult('js-basics', 'javascript', 'Вопрос про основы?'),
-        docgenResult('js-functions', 'javascript', 'Вопрос про функции?'),
+        docgenResult('js-functions', 'javascript', 'Вопрос про функции?', {
+          grade: 'middle',
+          docsRefs: [FUNCTIONS_URL],
+        }),
       ],
     });
     await mergeDocgenBatch(outputPath, { questionsPath: paths.questionsPath });
@@ -296,12 +411,14 @@ describe('docgenStatus', () => {
       total: 3,
       covered: 2,
       verified: 0,
+      rejected: 0,
     });
     expect(rows.find((row) => row.topic === 'typescript')).toEqual({
       topic: 'typescript',
       total: 1,
       covered: 0,
       verified: 0,
+      rejected: 0,
     });
 
     const totals = rows.reduce(
@@ -309,19 +426,32 @@ describe('docgenStatus', () => {
         total: acc.total + row.total,
         covered: acc.covered + row.covered,
         verified: acc.verified + row.verified,
+        rejected: acc.rejected + row.rejected,
       }),
-      { total: 0, covered: 0, verified: 0 },
+      { total: 0, covered: 0, verified: 0, rejected: 0 },
     );
-    expect(totals).toEqual({ total: 4, covered: 2, verified: 0 });
+    expect(totals).toEqual({ total: 4, covered: 2, verified: 0, rejected: 0 });
 
     const store = await readJsonFile<Array<Record<string, unknown>>>(paths.questionsPath);
     store[0] = { ...store[0], status: 'verified' };
+    store.push({
+      ...store[0],
+      id: 'javascript-rejected',
+      status: 'rejected',
+      rejectReason: 'верификация: неточность',
+    });
     await writeFile(paths.questionsPath, JSON.stringify(store), 'utf8');
 
     const updated = await docgenStatus({
       docMapDir: paths.docMapDir,
       questionsPath: paths.questionsPath,
     });
-    expect(updated.find((row) => row.topic === 'javascript')?.verified).toBe(1);
+    expect(updated.find((row) => row.topic === 'javascript')).toEqual({
+      topic: 'javascript',
+      total: 3,
+      covered: 2,
+      verified: 1,
+      rejected: 1,
+    });
   });
 });

@@ -12,13 +12,22 @@ function argValue(args: string[], name: string): string | undefined {
   return index === -1 ? undefined : args[index + 1];
 }
 
+function sizeArg(args: string[], fallback = 10): number {
+  const raw = argValue(args, '--size');
+  if (raw === undefined) return fallback;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error('--size должен быть положительным целым числом');
+  }
+  return value;
+}
+
 const args = process.argv.slice(2);
 const command = args.shift() ?? '';
-const size = Number(argValue(args, '--size') ?? 10);
 
 const commands: Record<string, () => Promise<void>> = {
   'generate-next': async () => {
-    const result = await emitGenerationBatch({ size });
+    const result = await emitGenerationBatch({ size: sizeArg(args) });
     console.log(result ? `Батч создан: ${result.inputPath}` : 'Нет вопросов для генерации');
   },
   'generate-merge': async () => {
@@ -28,7 +37,7 @@ const commands: Record<string, () => Promise<void>> = {
     console.log(`Смержено: ${result.updated}, отклонено при генерации: ${result.rejected}`);
   },
   'verify-next': async () => {
-    const result = await emitVerificationBatch({ size });
+    const result = await emitVerificationBatch({ size: sizeArg(args) });
     console.log(result ? `Батч создан: ${result.inputPath}` : 'Нет вопросов для верификации');
   },
   'verify-merge': async () => {
@@ -40,7 +49,7 @@ const commands: Record<string, () => Promise<void>> = {
   'docgen-next': async () => {
     const topic = argValue(args, '--topic');
     const grade = argValue(args, '--grade') as 'junior' | 'middle' | 'senior' | undefined;
-    const result = await emitDocgenBatch({ size, topic, grade });
+    const result = await emitDocgenBatch({ size: sizeArg(args), topic, grade });
     console.log(result ? `Батч создан: ${result.inputPath}` : 'Нет разделов для генерации');
   },
   'docgen-merge': async () => {
@@ -53,12 +62,13 @@ const commands: Record<string, () => Promise<void>> = {
     const topic = argValue(args, '--topic');
     for (const row of await docgenStatus({})) {
       if (topic && row.topic !== topic) continue;
-      console.log(`${row.topic}: покрыто ${row.covered}/${row.total}, verified ${row.verified}`);
+      console.log(
+        `${row.topic}: покрыто ${row.covered}/${row.total}, verified ${row.verified}, rejected ${row.rejected}`,
+      );
     }
   },
   'topics-next': async () => {
-    const sizeArg = argValue(args, '--size');
-    const result = await emitTopicfixBatch(sizeArg === undefined ? {} : { size: Number(sizeArg) });
+    const result = await emitTopicfixBatch({ size: sizeArg(args, 30) });
     console.log(result ? `Батч создан: ${result.inputPath}` : 'Нет вопросов для назначения тем');
   },
   'topics-merge': async () => {

@@ -234,19 +234,22 @@ describe('merge topicfix-батчей', () => {
   it('сохраняет поля вне схемы при переносе', async () => {
     const paths = await setup();
     const batch = await emit(paths);
-    const first = paths.questions[0];
+    const [first, second] = paths.questions;
 
     const store = await readJsonFile<Array<Record<string, unknown>>>(paths.questionsPath);
     store[0] = { ...store[0], note: 'пометка редактора' };
     await writeFile(paths.questionsPath, JSON.stringify(store), 'utf8');
 
-    const outputPath = await writeOutput(paths, batch!.batchId, [{ id: first.id, topic: 'html' }]);
+    const outputPath = await writeOutput(paths, batch!.batchId, [
+      { id: first.id, topic: 'html' },
+      { id: second.id, topic: 'css' },
+    ]);
     expect(await mergeTopicfixBatch(outputPath, {
       questionsPath: paths.questionsPath,
       overridesPath: paths.overridesPath,
     })).toEqual({
       applied: 1,
-      skipped: 0,
+      skipped: 1,
       collisions: 0,
     });
 
@@ -375,8 +378,11 @@ describe('merge topicfix-батчей', () => {
   it('повторный merge не плодит дубликаты исключений', async () => {
     const paths = await setup();
     const batch = await emit(paths);
-    const first = paths.questions[0];
-    const outputPath = await writeOutput(paths, batch!.batchId, [{ id: first.id, topic: 'html' }]);
+    const [first, second] = paths.questions;
+    const outputPath = await writeOutput(paths, batch!.batchId, [
+      { id: first.id, topic: 'html' },
+      { id: second.id, topic: 'css' },
+    ]);
 
     await mergeTopicfixBatch(outputPath, {
       questionsPath: paths.questionsPath,
@@ -393,15 +399,18 @@ describe('merge topicfix-батчей', () => {
   it('не пишет исключение для no-op', async () => {
     const paths = await setup();
     const batch = await emit(paths);
-    const second = paths.questions[1];
-    const outputPath = await writeOutput(paths, batch!.batchId, [{ id: second.id, topic: 'css' }]);
+    const [first, second] = paths.questions;
+    const outputPath = await writeOutput(paths, batch!.batchId, [
+      { id: first.id, topic: 'css' },
+      { id: second.id, topic: 'css' },
+    ]);
 
     expect(
       await mergeTopicfixBatch(outputPath, {
         questionsPath: paths.questionsPath,
         overridesPath: paths.overridesPath,
       }),
-    ).toEqual({ applied: 0, skipped: 1, collisions: 0 });
+    ).toEqual({ applied: 0, skipped: 2, collisions: 0 });
 
     expect(await readOverrides(paths.overridesPath)).toEqual([]);
   });
@@ -409,8 +418,11 @@ describe('merge topicfix-батчей', () => {
   it('не пишет исключение при коллизии', async () => {
     const paths = await setup();
     const batch = await emit(paths);
-    const first = paths.questions[0];
-    const outputPath = await writeOutput(paths, batch!.batchId, [{ id: first.id, topic: 'html' }]);
+    const [first, second] = paths.questions;
+    const outputPath = await writeOutput(paths, batch!.batchId, [
+      { id: first.id, topic: 'html' },
+      { id: second.id, topic: 'css' },
+    ]);
 
     const occupied = parsedQuestion(first.question, 'Другая секция', {
       topic: 'html',
@@ -425,7 +437,7 @@ describe('merge topicfix-батчей', () => {
         questionsPath: paths.questionsPath,
         overridesPath: paths.overridesPath,
       }),
-    ).toEqual({ applied: 0, skipped: 0, collisions: 1 });
+    ).toEqual({ applied: 0, skipped: 1, collisions: 1 });
 
     expect(await readOverrides(paths.overridesPath)).toEqual([]);
   });
@@ -477,7 +489,7 @@ describe('merge topicfix-батчей', () => {
   it('не трогает store, если реестр исключений невалиден', async () => {
     const paths = await setup();
     const batch = await emit(paths);
-    const first = paths.questions[0];
+    const [first, second] = paths.questions;
 
     await mkdir(path.dirname(paths.overridesPath), { recursive: true });
     await writeFile(
@@ -493,7 +505,10 @@ describe('merge topicfix-батчей', () => {
       'utf8',
     );
 
-    const outputPath = await writeOutput(paths, batch!.batchId, [{ id: first.id, topic: 'html' }]);
+    const outputPath = await writeOutput(paths, batch!.batchId, [
+      { id: first.id, topic: 'html' },
+      { id: second.id, topic: 'css' },
+    ]);
 
     await expect(
       mergeTopicfixBatch(outputPath, {
@@ -507,5 +522,41 @@ describe('merge topicfix-батчей', () => {
       topic: 'css',
       question: first.question,
     });
+  });
+
+  it('падает, если назначены не все вопросы батча, и не трогает store', async () => {
+    const paths = await setup();
+    const batch = await emit(paths);
+    const [first] = paths.questions;
+    const outputPath = await writeOutput(paths, batch!.batchId, [{ id: first.id, topic: 'html' }]);
+
+    await expect(
+      mergeTopicfixBatch(outputPath, {
+        questionsPath: paths.questionsPath,
+        overridesPath: paths.overridesPath,
+      }),
+    ).rejects.toThrow(/Батч неполный, нет назначения темы для вопросов/);
+
+    const store = await readJsonFile<unknown[]>(paths.questionsPath);
+    expect(store).toHaveLength(4);
+    expect(await readOverrides(paths.overridesPath)).toEqual([]);
+  });
+
+  it('падает, если вопрос назначен несколько раз', async () => {
+    const paths = await setup();
+    const batch = await emit(paths);
+    const [first, second] = paths.questions;
+    const outputPath = await writeOutput(paths, batch!.batchId, [
+      { id: first.id, topic: 'html' },
+      { id: first.id, topic: 'css' },
+      { id: second.id, topic: 'css' },
+    ]);
+
+    await expect(
+      mergeTopicfixBatch(outputPath, {
+        questionsPath: paths.questionsPath,
+        overridesPath: paths.overridesPath,
+      }),
+    ).rejects.toThrow(/несколько раз/);
   });
 });

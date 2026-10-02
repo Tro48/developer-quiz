@@ -3,10 +3,11 @@ import path from 'node:path';
 import { z } from 'zod';
 import { docMapSchema, loadDocMaps, type DocSection } from './docmap';
 import { makeId, normalizeQuestionText } from './ids';
-import { idsInBatches, readJson, uniqueBatchId, writeJson } from './io';
+import { readJson, uniqueBatchId, writeJson } from './io';
 import { paths } from './paths';
 import { isCoreTopic } from './taxonomy';
-import { generatedQuestionSchema, gradeSchema } from './types';
+import { contentKey } from './topic-overrides';
+import { GRADES, generatedQuestionSchema, gradeSchema } from './types';
 
 export type DocgenOptions = {
   topic?: string;
@@ -40,15 +41,18 @@ async function readStore(filePath: string): Promise<unknown[]> {
   return (await readJson<unknown[]>(filePath)) ?? [];
 }
 
-function contentKey(record: { source?: unknown; sourceUrl?: unknown; question?: unknown }): string | null {
-  if (
-    typeof record.source !== 'string' ||
-    typeof record.sourceUrl !== 'string' ||
-    typeof record.question !== 'string'
-  ) {
-    return null;
+// Статусы записей store по разделам карты: generated/verified означают покрытие,
+// rejected без них — раздел можно выдать заново.
+function statusesBySection(store: unknown[]): Map<string, Set<string>> {
+  const statuses = new Map<string, Set<string>>();
+  for (const record of store) {
+    const item = record as { docSection?: unknown; status?: unknown };
+    if (typeof item.docSection !== 'string' || typeof item.status !== 'string') continue;
+    const set = statuses.get(item.docSection) ?? new Set<string>();
+    set.add(item.status);
+    statuses.set(item.docSection, set);
   }
-  return `${record.source}|${record.sourceUrl}|${normalizeQuestionText(record.question)}`;
+  return statuses;
 }
 
 async function sectionsInBatches(batchesDir: string): Promise<Set<string>> {
@@ -88,12 +92,24 @@ export async function emitDocgenBatch(
 ): Promise<{ batchId: string; inputPath: string } | null> {
   const batchesDir = opts.batchesDir ?? paths.batches;
   const size = opts.size ?? 10;
+  const questionsPath = opts.questionsPath ?? path.join(paths.generated, 'questions.json');
   const sections: DocSection[] = await loadDocMaps(opts.docMapDir);
   const used = await sectionsInBatches(batchesDir);
+
+  const active = new Set<string>();
+  const rejected = new Set<string>();
+  for (const [sectionId, statuses] of statusesBySection(await readStore(questionsPath))) {
+    if (statuses.has('generated') || statuses.has('verified')) active.add(sectionId);
+    else if (statuses.has('rejected')) rejected.add(sectionId);
+  }
+
   const selected = sections
     .filter((section) => (opts.topic ? section.topic === opts.topic : true))
     .filter((section) => (opts.grade ? section.grade === opts.grade : true))
-    .filter((section) => !used.has(section.id))
+    .filter(
+      (section) =>
+        !active.has(section.id) && (!used.has(section.id) || rejected.has(section.id)),
+    )
     .slice(0, size);
 
   if (selected.length === 0) return null;
@@ -135,6 +151,32 @@ export async function mergeDocgenBatch(
   }
 
   const sectionsById = new Map(input.sections.map((section) => [section.id, section]));
+
+  // Батч закрыт, только если каждый раздел встречается ровно один раз.
+  const covered = new Map<string, number>();
+  for (const result of output.results) {
+    if (!sectionsById.has(result.sectionId)) {
+      throw new Error(`Раздел не из батча: ${result.sectionId}`);
+    }
+    covered.set(result.sectionId, (covered.get(result.sectionId) ?? 0) + 1);
+  }
+  for (const skip of output.skipped) {
+    if (!sectionsById.has(skip.sectionId)) {
+      throw new Error(`skipped содержит раздел не из батча: ${skip.sectionId}`);
+    }
+    covered.set(skip.sectionId, (covered.get(skip.sectionId) ?? 0) + 1);
+  }
+  const duplicates = [...covered]
+    .filter(([, count]) => count > 1)
+    .map(([sectionId]) => sectionId);
+  if (duplicates.length > 0) {
+    throw new Error(`Раздел указан несколько раз: ${duplicates.join(', ')}`);
+  }
+  const missing = input.sections.map((section) => section.id).filter((id) => !covered.has(id));
+  if (missing.length > 0) {
+    throw new Error(`Батч неполный, нет результата для разделов: ${missing.join(', ')}`);
+  }
+
   const questionsPath = opts.questionsPath ?? path.join(paths.generated, 'questions.json');
   const store = await readStore(questionsPath);
 
@@ -159,6 +201,14 @@ export async function mergeDocgenBatch(
       );
     }
     if (!isCoreTopic(result.topic)) throw new Error(`Тема не в ядре: ${result.topic}`);
+    if (GRADES.indexOf(result.grade) < GRADES.indexOf(section.grade)) {
+      throw new Error(
+        `Грейд результата (${result.grade}) ниже грейда раздела (${section.grade}): ${result.sectionId}`,
+      );
+    }
+    if (!result.docsRefs.includes(section.url)) {
+      throw new Error(`docsRefs не содержит URL раздела (${section.url}): ${result.sectionId}`);
+    }
 
     const id = makeId(result.topic, result.question);
     const key = `docgen|${section.url}|${normalizeQuestionText(result.question)}`;
@@ -190,45 +240,41 @@ export async function mergeDocgenBatch(
     added += 1;
   }
 
-  for (const skip of output.skipped) {
-    if (!sectionsById.has(skip.sectionId)) {
-      throw new Error(`skipped содержит раздел не из батча: ${skip.sectionId}`);
-    }
-    skipped += 1;
-  }
+  skipped += output.skipped.length;
 
   await writeJson(questionsPath, store);
   return { added, skipped };
 }
 
-export type DocgenStatusRow = { topic: string; total: number; covered: number; verified: number };
+export type DocgenStatusRow = {
+  topic: string;
+  total: number;
+  covered: number;
+  verified: number;
+  rejected: number;
+};
 
 export async function docgenStatus(
   opts: { docMapDir?: string; questionsPath?: string } = {},
 ): Promise<DocgenStatusRow[]> {
   const sections = await loadDocMaps(opts.docMapDir);
   const questionsPath = opts.questionsPath ?? path.join(paths.generated, 'questions.json');
-  const store = await readStore(questionsPath);
-
-  const statusBySection = new Map<string, string>();
-  for (const record of store) {
-    const item = record as { docSection?: unknown; status?: unknown };
-    if (
-      typeof item.docSection === 'string' &&
-      typeof item.status === 'string' &&
-      !statusBySection.has(item.docSection)
-    ) {
-      statusBySection.set(item.docSection, item.status);
-    }
-  }
+  const statuses = statusesBySection(await readStore(questionsPath));
 
   const rows = new Map<string, DocgenStatusRow>();
   for (const section of sections) {
-    const row = rows.get(section.topic) ?? { topic: section.topic, total: 0, covered: 0, verified: 0 };
+    const row = rows.get(section.topic) ?? {
+      topic: section.topic,
+      total: 0,
+      covered: 0,
+      verified: 0,
+      rejected: 0,
+    };
     row.total += 1;
-    const status = statusBySection.get(section.id);
-    if (status) row.covered += 1;
-    if (status === 'verified') row.verified += 1;
+    const sectionStatuses = statuses.get(section.id);
+    if (sectionStatuses?.has('generated') || sectionStatuses?.has('verified')) row.covered += 1;
+    if (sectionStatuses?.has('verified')) row.verified += 1;
+    if (sectionStatuses?.has('rejected')) row.rejected += 1;
     rows.set(section.topic, row);
   }
 
