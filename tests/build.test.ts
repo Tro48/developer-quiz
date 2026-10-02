@@ -61,6 +61,30 @@ describe('buildBank', () => {
     expect(sample.correct_index).toBe(1);
   });
 
+  it('переносит docSection verified-вопроса в JSON и колонку doc_section', async () => {
+    const { questionsPath, bankDir } = await setup();
+    const questions = JSON.parse(await readFile(questionsPath, 'utf8'));
+    questions[0] = { ...questions[0], docSection: 'data-types' };
+    await writeFile(questionsPath, JSON.stringify(questions), 'utf8');
+
+    const result = await buildBank({ questionsPath, bankDir });
+
+    const bankJson = JSON.parse(await readFile(result.jsonPath, 'utf8'));
+    const withSection = bankJson.find((item: { id: string }) => item.id === 'javascript-11111111');
+    expect(withSection.docSection).toBe('data-types');
+
+    const db = new Database(result.dbPath, { readonly: true });
+    const rows = db
+      .prepare('select id, doc_section from questions order by id')
+      .all() as { id: string; doc_section: string | null }[];
+    db.close();
+
+    expect(rows).toEqual([
+      { id: 'javascript-11111111', doc_section: 'data-types' },
+      { id: 'javascript-22222222', doc_section: null },
+    ]);
+  });
+
   it('не собирает банк при проблемах валидации и ничего не пишет', async () => {
     const { questionsPath, bankDir } = await setup();
     const broken = JSON.parse(await readFile(questionsPath, 'utf8'));

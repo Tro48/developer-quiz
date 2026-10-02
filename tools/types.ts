@@ -15,6 +15,7 @@ export const parsedQuestionSchema = z.object({
   grade: gradeSchema.optional(),
   source: z.string().min(1),
   sourceUrl: z.string().url(),
+  docSection: z.string().regex(/^[a-z0-9-]+$/).optional(),
   question: z.string().min(1),
   answer: z.string(),
   status: z.literal('parsed'),
