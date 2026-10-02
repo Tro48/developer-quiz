@@ -57,12 +57,16 @@ export function validateVerified(questions: unknown[]): ValidationIssue[] {
 // битый JSON, не массив) обязаны стать issue, чтобы гейт не зеленел ложно.
 export async function readQuestionsFile(
   filePath: string,
+  opts: { missingIsError?: boolean } = {},
 ): Promise<{ questions: unknown[]; issues: ValidationIssue[] }> {
   let raw: string;
   try {
     raw = await readFile(filePath, 'utf8');
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      if (opts.missingIsError) {
+        return { questions: [], issues: [{ message: `файл не найден: ${filePath}` }] };
+      }
       return { questions: [], issues: [] };
     }
     return {

@@ -87,4 +87,23 @@ describe('buildBank', () => {
 
     await expect(buildBank({ questionsPath, bankDir })).rejects.toThrow(/Банк не собран/);
   });
+
+  it('падает, если файла базы нет, и не затирает существующий банк', async () => {
+    const { questionsPath, bankDir } = await setup();
+    await mkdir(bankDir, { recursive: true });
+    await writeFile(path.join(bankDir, 'questions.json'), '[]', 'utf8');
+
+    const missingPath = path.join(path.dirname(questionsPath), 'нет.json');
+    await expect(buildBank({ questionsPath: missingPath, bankDir })).rejects.toThrow(
+      /файл не найден/,
+    );
+    expect(await readFile(path.join(bankDir, 'questions.json'), 'utf8')).toBe('[]');
+  });
+
+  it('падает на null в базе', async () => {
+    const { questionsPath, bankDir } = await setup();
+    await writeFile(questionsPath, JSON.stringify([null]), 'utf8');
+
+    await expect(buildBank({ questionsPath, bankDir })).rejects.toThrow(/не объект/);
+  });
 });

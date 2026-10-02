@@ -24,11 +24,17 @@ export async function buildBank(
   const questionsPath = opts.questionsPath ?? path.join(paths.generated, 'questions.json');
   const bankDir = opts.bankDir ?? paths.bank;
 
-  const { questions: store, issues: readIssues } = await readQuestionsFile(questionsPath);
+  const { questions: store, issues: readIssues } = await readQuestionsFile(questionsPath, {
+    missingIsError: true,
+  });
   const errors: string[] = readIssues.map((issue) => issue.message);
 
   const verified: BankQuestion[] = [];
   for (const question of store) {
+    if (typeof question !== 'object' || question === null) {
+      errors.push(`запись не объект: ${String(question)}`);
+      continue;
+    }
     if ((question as { status?: unknown }).status !== 'verified') continue;
 
     const parsed = generatedQuestionSchema.safeParse(question);
