@@ -168,11 +168,17 @@ describe('батчи генерации', () => {
     const batch = await emitGenerationBatch({ ...paths, size: 1 });
     const input = await readJsonFile(batch!.inputPath);
 
-    const outputPath = await writeGenerationOutput(paths, 'generation-19700101-000000', {
-      results: [generationResult(input.questions[0].id)],
-    });
+    const outputPath = path.join(paths.batchesDir, 'generation', `${batch!.batchId}.output.json`);
+    await writeFile(
+      outputPath,
+      JSON.stringify({
+        batchId: 'generation-19700101-000000',
+        results: [generationResult(input.questions[0].id)],
+      }),
+      'utf8',
+    );
 
-    await expect(mergeGenerationBatch(outputPath, paths)).rejects.toThrow(/batchId/);
+    await expect(mergeGenerationBatch(outputPath, paths)).rejects.toThrow(/не совпадает/);
   });
 
   it('падает на id не из батча', async () => {
