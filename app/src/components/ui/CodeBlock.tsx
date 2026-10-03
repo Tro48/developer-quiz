@@ -14,13 +14,13 @@ export function CodeBlock({ code }: Props) {
       horizontal
       showsHorizontalScrollIndicator
       testID="code-block"
+      contentContainerStyle={{ padding: theme.spacing.md }}
       style={[
         styles.container,
         {
           backgroundColor: theme.colors.surfaceElevated,
           borderColor: theme.colors.border,
           borderRadius: theme.radii.md,
-          padding: theme.spacing.md,
         },
       ]}
     >

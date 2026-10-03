@@ -98,6 +98,9 @@ describe('buildBank', () => {
     const withCode = bankJson.find((item: { id: string }) => item.id === 'javascript-11111111');
     expect(withCode.code).toBe(code);
 
+    const withoutCode = bankJson.find((item: { id: string }) => item.id === 'javascript-22222222');
+    expect(withoutCode).not.toHaveProperty('code');
+
     const db = new Database(result.dbPath, { readonly: true });
     const rows = db
       .prepare('select id, code from questions order by id')

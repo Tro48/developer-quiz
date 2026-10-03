@@ -42,6 +42,26 @@ describe('questions', () => {
     });
   });
 
+  it('маппит отсутствующий code в null', async () => {
+    const db = createTestDb();
+    await db.execAsync(SETUP);
+
+    const pool = await getQuestionPool(db, { grade: 'junior', topics: ['css'] });
+
+    expect(pool).toEqual([
+      {
+        id: 'css-1',
+        topic: 'css',
+        grade: 'junior',
+        question: 'Вопрос 2',
+        options: ['a', 'b', 'c', 'd'],
+        correctIndex: 0,
+        explanation: 'Пояснение',
+        code: null,
+      },
+    ]);
+  });
+
   it('считает вопросы по темам и грейдам', async () => {
     const db = createTestDb();
     await db.execAsync(SETUP);
