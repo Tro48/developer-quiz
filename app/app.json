@@ -35,6 +35,16 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/d7b39702-7d99-4a98-ac0c-a197a3a8e9fc"
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "d7b39702-7d99-4a98-ac0c-a197a3a8e9fc"
+      }
+    },
+    "owner": "trofimdev"
   }
 }
