@@ -10,6 +10,7 @@ const questions: Question[] = [
     options: ['a', 'b', 'c', 'd'],
     correctIndex: 1,
     explanation: 'Потому что.',
+    code: null,
   },
   {
     id: 'q-2',
@@ -19,6 +20,7 @@ const questions: Question[] = [
     options: ['a', 'b', 'c', 'd'],
     correctIndex: 0,
     explanation: 'Так.',
+    code: null,
   },
 ];
 

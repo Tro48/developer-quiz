@@ -16,4 +16,5 @@ export type Question = {
   options: string[];
   correctIndex: number;
   explanation: string;
+  code: string | null;
 };

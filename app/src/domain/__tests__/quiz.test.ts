@@ -10,6 +10,7 @@ function makePool(size: number): Question[] {
     options: ['a', 'b', 'c', 'd'],
     correctIndex: 0,
     explanation: '',
+    code: null,
   }));
 }
 

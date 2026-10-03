@@ -9,7 +9,7 @@ import { StartupErrorScreen } from '@/features/settings/StartupErrorScreen';
 import { I18nProvider } from '@/i18n';
 import { ThemeProvider } from '@/theme';
 
-const QUESTIONS_DB_NAME = 'questions-v1.db';
+const QUESTIONS_DB_NAME = 'questions-v2.db';
 
 function QuestionsDbProvider({ children }: PropsWithChildren) {
   const [attempt, setAttempt] = useState(0);
@@ -19,7 +19,7 @@ function QuestionsDbProvider({ children }: PropsWithChildren) {
       <SQLiteProvider
         key={attempt}
         databaseName={QUESTIONS_DB_NAME}
-        assetSource={{ assetId: require('../../assets/db/questions-v1.db') }}
+        assetSource={{ assetId: require('../../assets/db/questions-v2.db') }}
       >
         {children}
       </SQLiteProvider>

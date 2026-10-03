@@ -10,6 +10,7 @@ type QuestionRow = {
   options_json: string;
   correct_index: number;
   explanation: string;
+  code: string | null;
 };
 
 export type QuestionCount = { topic: Topic; grade: Grade; total: number };
@@ -23,7 +24,7 @@ export async function getQuestionPool(
   }
   const placeholders = filters.topics.map(() => '?').join(', ');
   const rows = await db.getAllAsync<QuestionRow>(
-    `SELECT id, topic, grade, question, options_json, correct_index, explanation
+    `SELECT id, topic, grade, question, options_json, correct_index, explanation, code
      FROM questions
      WHERE grade = ? AND topic IN (${placeholders})`,
     [filters.grade, ...filters.topics]
@@ -51,5 +52,6 @@ function toQuestion(row: QuestionRow): Question {
     options: JSON.parse(row.options_json) as string[],
     correctIndex: row.correct_index,
     explanation: row.explanation,
+    code: row.code ?? null,
   };
 }

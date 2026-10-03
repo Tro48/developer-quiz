@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const source = resolve(here, '../../data/bank/questions.db');
-const target = resolve(here, '../assets/db/questions-v1.db');
+const target = resolve(here, '../assets/db/questions-v2.db');
 
 if (!existsSync(source)) {
   console.error('Нет data/bank/questions.db — сначала выполните npm run build в корне репозитория');

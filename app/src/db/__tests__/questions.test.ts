@@ -11,14 +11,15 @@ CREATE TABLE questions (
   options_json TEXT NOT NULL,
   correct_index INTEGER NOT NULL,
   explanation TEXT NOT NULL,
+  code TEXT,
   docs_refs_json TEXT NOT NULL,
   doc_section TEXT,
   source TEXT NOT NULL,
   source_url TEXT NOT NULL
 );
-INSERT INTO questions VALUES ('js-1', 'javascript', 'junior', 'Вопрос 1', 'ответ', '["a","b","c","d"]', 2, 'Пояснение', '[]', NULL, 'src', 'url');
-INSERT INTO questions VALUES ('css-1', 'css', 'junior', 'Вопрос 2', 'ответ', '["a","b","c","d"]', 0, 'Пояснение', '[]', NULL, 'src', 'url');
-INSERT INTO questions VALUES ('js-2', 'javascript', 'middle', 'Вопрос 3', 'ответ', '["a","b","c","d"]', 1, 'Пояснение', '[]', NULL, 'src', 'url');
+INSERT INTO questions VALUES ('js-1', 'javascript', 'junior', 'Вопрос 1', 'ответ', '["a","b","c","d"]', 2, 'Пояснение', 'const x = 1;', '[]', NULL, 'src', 'url');
+INSERT INTO questions VALUES ('css-1', 'css', 'junior', 'Вопрос 2', 'ответ', '["a","b","c","d"]', 0, 'Пояснение', NULL, '[]', NULL, 'src', 'url');
+INSERT INTO questions VALUES ('js-2', 'javascript', 'middle', 'Вопрос 3', 'ответ', '["a","b","c","d"]', 1, 'Пояснение', NULL, '[]', NULL, 'src', 'url');
 `;
 
 describe('questions', () => {
@@ -37,6 +38,7 @@ describe('questions', () => {
       options: ['a', 'b', 'c', 'd'],
       correctIndex: 2,
       explanation: 'Пояснение',
+      code: 'const x = 1;',
     });
   });
 

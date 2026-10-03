@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
-import { AppText, Button, ProgressBar, Screen } from '@/components/ui';
+import { AppText, Button, CodeBlock, ProgressBar, Screen } from '@/components/ui';
 import { isGrade } from '@/domain/types';
 import { useTranslation } from '@/i18n';
 
@@ -80,6 +80,7 @@ export function QuizScreen() {
       </AppText>
       <ProgressBar value={(state.index + 1) / state.questions.length} />
       <AppText variant="subtitle">{question.question}</AppText>
+      {question.code ? <CodeBlock code={question.code} /> : null}
       <View style={styles.options}>
         {question.options.map((option, index) => (
           <AnswerOption
