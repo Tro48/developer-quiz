@@ -1,4 +1,4 @@
-import { fontSizes, fontWeights, lineHeights, radii, spacing } from './tokens';
+import { fontFamilies, fontSizes, fontWeights, lineHeights, radii, spacing } from './tokens';
 
 export type ThemeName = 'dark' | 'light';
 
@@ -23,9 +23,10 @@ export type Theme = {
   fontSizes: typeof fontSizes;
   fontWeights: typeof fontWeights;
   lineHeights: typeof lineHeights;
+  fontFamilies: typeof fontFamilies;
 };
 
-const scales = { spacing, radii, fontSizes, fontWeights, lineHeights };
+const scales = { spacing, radii, fontSizes, fontWeights, lineHeights, fontFamilies };
 
 export const darkTheme: Theme = {
   name: 'dark',

@@ -3,5 +3,6 @@ export type { TextVariant } from './AppText';
 export { Button } from './Button';
 export type { ButtonVariant } from './Button';
 export { Card } from './Card';
+export { CodeBlock } from './CodeBlock';
 export { ProgressBar } from './ProgressBar';
 export { Screen } from './Screen';
