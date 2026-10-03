@@ -1,5 +1,8 @@
 node_modules/
-data/
+data/*
+!data/bank/
+data/bank/*
+!data/bank/questions.json
 *.log
 .DS_Store
 .claude/

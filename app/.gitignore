@@ -40,5 +40,5 @@ yarn-error.*
 /ios
 /android
 
-# copied question bank (npm run db:copy)
-assets/db/
+# устаревшая версия ассета банка (актуальная — questions-v2.db)
+assets/db/questions-v1.db
