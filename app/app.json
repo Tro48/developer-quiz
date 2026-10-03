@@ -7,11 +7,15 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "package": "com.developerquiz.app",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
