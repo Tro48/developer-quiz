@@ -3,6 +3,12 @@ data/*
 !data/bank/
 data/bank/*
 !data/bank/questions.json
+
+# внутренняя документация — только локально, в публичный репозиторий не идёт
+docs/
+DESIGN.md
+app/AGENTS.md
+
 *.log
 .DS_Store
 .claude/
