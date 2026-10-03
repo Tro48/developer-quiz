@@ -1,0 +1,71 @@
+# Проверки, которые не требуют ни Android SDK, ни телефона.
+#
+# Два набора тестов не случайно: пайплайн банка бежит в голом Node через
+# vitest и этим доказывает, что расчёты не завязаны на приложение; jest
+# поднимает настоящий React Native и проверяет экраны и хранилище.
+#
+# Файл вызывается тремя способами: сам по себе в пул-реквестах и на ветке
+# dev, и через workflow_call из update.yml и build.yml перед выкаткой.
+name: Проверки
+
+on:
+  workflow_call:
+  pull_request:
+  push:
+    branches: [dev]
+
+jobs:
+  pipeline:
+    name: Пайплайн банка
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Установка зависимостей
+        run: npm ci
+
+      - name: Типы
+        run: npx tsc --noEmit
+
+      - name: Тесты
+        run: npm test
+
+  app:
+    name: Линтер, типы, тесты приложения
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Установка зависимостей
+        run: npm ci
+
+      - name: Линтер
+        run: npm run lint
+
+      - name: Типы
+        run: npm run typecheck
+
+      - name: Тесты
+        run: npm test
+
+      - name: Конфигурация Expo
+        run: npx expo-doctor
+
+      - name: Сборка JS-бандла под Android
+        # Ловит то, что не видит tsc: несуществующие модули, ошибки резолва
+        # алиасов и путей маршрутов, отсутствующий ассет банка.
+        run: npx expo export --platform android --output-dir /tmp/export-check

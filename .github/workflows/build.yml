@@ -1,0 +1,102 @@
+# Сборка APK в облаке EAS.
+#
+# Сюда приходят изменения нативной части — то, что по воздуху не доставить.
+# Правки экранов и банка закрывает update.yml (EAS Update), и сборка ради
+# них квоту не тратит: у бесплатного аккаунта 15 сборок в месяц.
+#
+# Запускается двумя способами: руками и вызовом из update.yml, когда мерж в
+# main изменил отпечаток нативной части.
+#
+# Профиль один — production. Второй профиль означал бы второе приложение на
+# телефоне (другой package name или канал), а релизные сборки должны
+# обновлять уже установленное, а не вставать рядом.
+name: Сборка Android
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    uses: ./.github/workflows/checks.yml
+
+  build:
+    name: EAS Build
+    needs: checks
+    runs-on: ubuntu-latest
+    # Нужно, чтобы workflow мог создать релиз с APK и манифестом.
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Вершина ветки, а не коммит события: при вызове из update.yml
+          # версию к этому моменту уже подняла отдельная джоба, и APK должен
+          # нести именно её.
+          ref: ${{ github.ref }}
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Установка зависимостей
+        run: npm ci
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Сборка APK
+        # --wait, а не --no-wait: без ожидания не узнать ни ссылку на APK,
+        # ни отпечаток нативной части, а без них нечего класть в релиз.
+        run: eas build --platform android --profile production --non-interactive --json --wait > build.json
+
+      - name: Выпуск на GitHub
+        # APK переезжает в релиз репозитория: артефакты EAS на бесплатном
+        # аккаунте живут 30 дней, а ссылка релиза постоянная.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MESSAGE: ${{ github.event.head_commit.message || github.sha }}
+        run: |
+          set -euo pipefail
+
+          artifact=$(jq -er '.[0].artifacts.applicationArchiveUrl' build.json)
+          version=$(jq -er '.[0].appVersion' build.json)
+          # Отпечаток лежит в runtime.version, а не в runtimeVersion: поля с
+          # таким именем в ответе EAS нет.
+          runtime=$(jq -er '.[0].runtime.version' build.json) || {
+            echo "В ответе EAS нет runtime.version. Что пришло:"
+            jq '.[0] | keys' build.json
+            exit 1
+          }
+
+          apk="developer-quiz-$version.apk"
+          tag="v$version-${runtime:0:8}"
+          curl -fsSL "$artifact" -o "$apk"
+
+          # android.json читает развилка в update.yml: из него берётся
+          # отпечаток уже выпущенной сборки. Тот же файл будет нужен экрану
+          # «доступно обновление», когда он появится.
+          jq -n \
+            --arg runtimeVersion "$runtime" \
+            --arg url "https://github.com/${{ github.repository }}/releases/download/$tag/$apk" \
+            --arg version "$version" \
+            --arg builtAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg notes "$MESSAGE" \
+            '{runtimeVersion: $runtimeVersion, url: $url, version: $version, builtAt: $builtAt, notes: $notes}' \
+            > android.json
+
+          gh release create "$tag" "$apk" android.json \
+            --title "Developer Quiz $version" \
+            --notes "Отпечаток нативной части: $runtime" \
+            || gh release upload "$tag" "$apk" android.json --clobber
