@@ -10,7 +10,8 @@ describe('CodeBlock', () => {
   it('рендерит код дословно, сохраняя переводы строк и отступы', async () => {
     await renderWithTheme(<CodeBlock code={code} />);
 
-    expect(screen.getByText(code)).toBeTruthy();
+    const rendered = screen.getByText(code, { normalizer: (text: string) => text });
+    expect(rendered.props.children).toBe(code);
   });
 
   it('использует моноширинный шрифт и подложку темы', async () => {
