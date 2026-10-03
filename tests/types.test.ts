@@ -19,6 +19,34 @@ describe('parsedQuestionSchema', () => {
     const result = parsedQuestionSchema.safeParse({ ...base, status: 'parsed', grade: 'lead' });
     expect(result.success).toBe(false);
   });
+
+  it('принимает необязательный code и сохраняет форматирование', () => {
+    const code = 'function sum(a, b) {\n  return a + b;\n}';
+    const parsed = parsedQuestionSchema.parse({ ...base, status: 'parsed', code });
+    expect(parsed.code).toBe(code);
+  });
+
+  it('отклоняет пустой и пробельный code', () => {
+    expect(parsedQuestionSchema.safeParse({ ...base, status: 'parsed', code: '' }).success).toBe(false);
+    expect(
+      parsedQuestionSchema.safeParse({ ...base, status: 'parsed', code: '  \n ' }).success,
+    ).toBe(false);
+  });
+
+  it('сохраняет code в схеме банка', () => {
+    const code = 'const x = 1;';
+    const question = {
+      ...base,
+      grade: 'junior',
+      options: ['А', 'Б', 'В', 'Г'],
+      correctIndex: 0,
+      explanation: 'Пояснение.',
+      docsRefs: ['https://developer.mozilla.org/ru/docs/Web/JavaScript/Closures'],
+      status: 'verified',
+      code,
+    };
+    expect(bankQuestionSchema.parse(question).code).toBe(code);
+  });
 });
 
 describe('generatedQuestionSchema', () => {

@@ -18,6 +18,11 @@ export const parsedQuestionSchema = z.object({
   docSection: z.string().regex(/^[a-z0-9-]+$/).optional(),
   question: z.string().min(1),
   answer: z.string(),
+  // Необязательный пример кода: форматирование (отступы, переводы строк) сохраняется как есть.
+  code: z
+    .string()
+    .refine((value) => value.trim().length > 0, 'пример кода не может быть пустым')
+    .optional(),
   status: z.literal('parsed'),
 });
 export type ParsedQuestion = z.infer<typeof parsedQuestionSchema>;

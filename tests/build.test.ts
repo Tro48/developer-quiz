@@ -85,6 +85,31 @@ describe('buildBank', () => {
     ]);
   });
 
+  it('переносит code verified-вопроса в JSON и колонку code', async () => {
+    const { questionsPath, bankDir } = await setup();
+    const code = 'const x = 1;\nif (x) {\n  console.log(x);\n}';
+    const questions = JSON.parse(await readFile(questionsPath, 'utf8'));
+    questions[0] = { ...questions[0], code };
+    await writeFile(questionsPath, JSON.stringify(questions), 'utf8');
+
+    const result = await buildBank({ questionsPath, bankDir });
+
+    const bankJson = JSON.parse(await readFile(result.jsonPath, 'utf8'));
+    const withCode = bankJson.find((item: { id: string }) => item.id === 'javascript-11111111');
+    expect(withCode.code).toBe(code);
+
+    const db = new Database(result.dbPath, { readonly: true });
+    const rows = db
+      .prepare('select id, code from questions order by id')
+      .all() as { id: string; code: string | null }[];
+    db.close();
+
+    expect(rows).toEqual([
+      { id: 'javascript-11111111', code },
+      { id: 'javascript-22222222', code: null },
+    ]);
+  });
+
   it('не собирает банк при проблемах валидации и ничего не пишет', async () => {
     const { questionsPath, bankDir } = await setup();
     const broken = JSON.parse(await readFile(questionsPath, 'utf8'));

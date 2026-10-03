@@ -73,6 +73,7 @@ export async function buildBank(
         options_json TEXT NOT NULL,
         correct_index INTEGER NOT NULL,
         explanation TEXT NOT NULL,
+        code TEXT,
         docs_refs_json TEXT NOT NULL,
         doc_section TEXT,
         source TEXT NOT NULL,
@@ -84,10 +85,10 @@ export async function buildBank(
     const insert = db.prepare(`
       INSERT INTO questions (
         id, topic, grade, question, answer, options_json,
-        correct_index, explanation, docs_refs_json, doc_section, source, source_url
+        correct_index, explanation, code, docs_refs_json, doc_section, source, source_url
       ) VALUES (
         @id, @topic, @grade, @question, @answer, @optionsJson,
-        @correctIndex, @explanation, @docsRefsJson, @docSection, @source, @sourceUrl
+        @correctIndex, @explanation, @code, @docsRefsJson, @docSection, @source, @sourceUrl
       )
     `);
 
@@ -102,6 +103,7 @@ export async function buildBank(
           optionsJson: JSON.stringify(item.options),
           correctIndex: item.correctIndex,
           explanation: item.explanation,
+          code: item.code ?? null,
           docsRefsJson: JSON.stringify(item.docsRefs),
           docSection: item.docSection ?? null,
           source: item.source,
